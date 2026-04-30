@@ -47,9 +47,24 @@
 Interface Layer
   -> Application Layer
     -> Simulator Layer
-      -> Domain Layer
+      -> AMM Service Layer
+        -> Domain Layer
         -> Infrastructure / Visualization / Analytics
 ```
+
+这次结构调整以《概要设计说明书》为基础，但没有机械照搬文档中的中文模块名，而是采用更适合 Python 项目维护的包名。核心对应关系如下：
+
+| 概要设计模块 | 当前代码位置 | 说明 |
+| --- | --- | --- |
+| 界面模块 | `main.py`、`streamlit_app.py`、`src/interface/`、`src/web/` | 提供 CLI 和 Streamlit Web 交互入口 |
+| 仿真控制模块 | `src/simulator/`、`src/application/simulation_runner.py` | 负责事件队列、场景构造、流程编排和结果封装 |
+| AMM 核心模块 | `src/amm/engine.py`、`src/domain/pool.py` | 实现恒定乘积报价、兑换和池状态维护 |
+| 流动性管理模块 | `src/amm/liquidity_manager.py` | 实现添加/移除流动性和 LP 份额计算 |
+| 指标计算模块 | `src/analytics/metrics.py`、`src/analytics/slippage.py`、`src/analytics/impermanent_loss.py`、`src/analytics/pnl.py` | 计算滑点、无常损失和用户收益 |
+| 数据管理模块 | `src/infrastructure/` | 负责配置读取、CSV 日志导出、JSON 摘要导出 |
+| 可视化模块 | `src/visualization/plotter.py` | 生成价格、滑点、用户收益图表 |
+
+这样调整后，`Pool` 主要负责保存资金池状态，`AMMEngine` 负责交易公式，`LiquidityManager` 负责 LP 逻辑，`SimulatorEngine` 负责事件调度，职责边界更接近概要设计中的“高内聚、低耦合”原则。
 
 ### 1. Interface Layer
 
@@ -92,12 +107,28 @@ Interface Layer
 
 - 定义事件模型
 - 构造事件序列
-- 逐个处理交易/加池/减池事件
+- 逐个调度交易/加池/减池事件
+- 调用 AMM 服务层和指标计算模块
 - 产出 `SimulationResult`
 
-### 4. Domain Layer
+### 4. AMM Service Layer
 
-负责核心业务规则和状态对象。
+负责恒定乘积交易逻辑和流动性份额逻辑。
+
+- `src/amm/engine.py`
+- `src/amm/liquidity_manager.py`
+
+职责：
+
+- 提供 `quote()` 和 `swap()` 交易接口
+- 计算手续费、有效输入和成交输出
+- 添加/移除流动性
+- 计算 LP 份额铸造和销毁
+- 统一修改资金池状态
+
+### 5. Domain Layer
+
+负责核心状态对象。
 
 - `src/domain/pool.py`
 - `src/domain/user.py`
@@ -108,15 +139,16 @@ Interface Layer
 
 - 管理池子储备
 - 管理用户余额与 LP 份额
-- 实现 AMM 数学逻辑
+- 提供基础状态属性，如池内价格和恒定乘积值
 - 抛出业务异常
 
-### 5. Analytics / Infrastructure / Visualization
+### 6. Analytics / Infrastructure / Visualization
 
 负责结果分析、数据导出和图表生成。
 
 Analytics:
 
+- `src/analytics/metrics.py`
 - `src/analytics/slippage.py`
 - `src/analytics/impermanent_loss.py`
 - `src/analytics/pnl.py`
@@ -155,10 +187,15 @@ amm-exchange-simulator/
 │   ├── analytics/
 │   │   ├── __init__.py
 │   │   ├── impermanent_loss.py
+│   │   ├── metrics.py
 │   │   ├── pnl.py
 │   │   ├── record.py
 │   │   ├── report.py
 │   │   └── slippage.py
+│   ├── amm/
+│   │   ├── __init__.py
+│   │   ├── engine.py
+│   │   └── liquidity_manager.py
 │   ├── domain/
 │   │   ├── exceptions.py
 │   │   ├── lp_position.py
@@ -172,6 +209,9 @@ amm-exchange-simulator/
 │   │   └── summary_exporter.py
 │   ├── interface/
 │   │   └── cli.py
+│   ├── web/
+│   │   ├── __init__.py
+│   │   └── app_support.py
 │   ├── simulator/
 │   │   ├── engine.py
 │   │   ├── event.py
@@ -187,8 +227,10 @@ amm-exchange-simulator/
 │   ├── test_pool.py
 │   ├── test_runner.py
 │   ├── test_simulator.py
+│   ├── test_web_support.py
 │   └── test_visualization.py
 ├── main.py
+├── streamlit_app.py
 ├── requirements.txt
 └── README.md
 ```
@@ -224,6 +266,46 @@ D:\miniconda3\envs\jrrg\python.exe -m pip install -r requirements.txt
 - `plot_dir`：PNG 图表输出目录
 - `users`：初始用户资产
 - `events`：仿真事件序列
+
+## 功能说明
+
+### 1. 默认配置仿真
+
+系统读取 `configs/default.yaml`，创建初始资金池、用户资产和事件序列，然后按时间顺序执行仿真。该功能适合快速演示完整链路。
+
+### 2. 交易功能
+
+交易事件支持两种方向：
+
+- `x_to_y`：用户输入 Token X，换出 Token Y。
+- `y_to_x`：用户输入 Token Y，换出 Token X。
+
+交易时系统会先扣除手续费得到有效输入 `dx'`，再根据恒定乘积公式计算输出数量。交易完成后，用户余额和池子储备都会更新，并记录成交价格、手续费和滑点。
+
+### 3. 添加流动性
+
+LP 用户可以向池子注入两种资产。首次建池时，系统用几何平均值生成初始 LP 份额；后续加池时，系统按当前池子比例消耗资产，避免破坏池内价格。
+
+### 4. 移除流动性
+
+LP 用户提交要赎回的 LP 份额，系统按该份额占总 LP 份额的比例返还两侧资产，并同步减少池子储备和 LP 总份额。
+
+### 5. 指标分析
+
+系统会统计：
+
+- 滑点：实际成交价格相对理论价格的偏离。
+- 手续费：每笔交易输入金额按费率产生的费用。
+- 无常损失：LP 相比单纯持有资产时的相对损失。
+- 用户收益：用户钱包资产和 LP 仓位折算后的总价值变化。
+
+### 6. 数据导出与可视化
+
+默认仿真结束后会生成：
+
+- CSV 事件日志：用于查看每一步交易或流动性事件。
+- JSON 摘要：用于查看总事件数、手续费、滑点、无常损失、用户收益等结果。
+- PNG 图表：用于展示池内价格变化、滑点变化和用户收益对比。
 
 ## 运行方式
 

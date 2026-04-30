@@ -116,9 +116,9 @@ def build_config_from_runtime_input(
         initial_reserve_x=initial_reserve_x,
         initial_reserve_y=initial_reserve_y,
         fee_rate=fee_rate,
-        log_path=str(base_dir / "simulation.csv"),
-        summary_path=str(base_dir / "summary.json"),
-        plot_dir=str(base_dir),
+        log_path=(base_dir / "simulation.csv").as_posix(),
+        summary_path=(base_dir / "summary.json").as_posix(),
+        plot_dir=base_dir.as_posix(),
         users=users,
         events=events,
     )
@@ -126,4 +126,3 @@ def build_config_from_runtime_input(
 
 def user_pnl_rows(summary_user_pnl: dict[str, Any]) -> list[dict[str, Any]]:
     return [asdict(item) for item in summary_user_pnl.values()]
-

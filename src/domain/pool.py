@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import sqrt
-
-from .exceptions import InsufficientBalanceError, InsufficientLiquidityError
 
 
 @dataclass
 class Pool:
+    """资金池状态对象：只保存储备、手续费率和 LP 总份额等核心状态。"""
+
     reserve_x: float
     reserve_y: float
     fee_rate: float = 0.003
@@ -19,63 +18,27 @@ class Pool:
             return float("inf")
         return self.reserve_y / self.reserve_x
 
+    @property
+    def invariant(self) -> float:
+        return self.reserve_x * self.reserve_y
+
     def add_liquidity(self, amount_x: float, amount_y: float) -> tuple[float, float, float]:
-        if amount_x <= 0 or amount_y <= 0:
-            raise InsufficientBalanceError("Liquidity amounts must be positive")
+        # 兼容旧接口：实际业务逻辑委托给流动性管理模块。
+        from src.amm.liquidity_manager import LiquidityManager
 
-        if self.reserve_x <= 0 or self.reserve_y <= 0 or self.total_lp_shares <= 0:
-            minted_shares = sqrt(amount_x * amount_y)
-            self.reserve_x += amount_x
-            self.reserve_y += amount_y
-            self.total_lp_shares += minted_shares
-            return amount_x, amount_y, minted_shares
-
-        share_ratio = min(amount_x / self.reserve_x, amount_y / self.reserve_y)
-        if share_ratio <= 0:
-            raise InsufficientBalanceError("Invalid liquidity ratio")
-
-        consumed_x = self.reserve_x * share_ratio
-        consumed_y = self.reserve_y * share_ratio
-        minted_shares = self.total_lp_shares * share_ratio
-        self.reserve_x += consumed_x
-        self.reserve_y += consumed_y
-        self.total_lp_shares += minted_shares
-        return consumed_x, consumed_y, minted_shares
+        result = LiquidityManager(self).add_liquidity(amount_x, amount_y)
+        return result.consumed_x, result.consumed_y, result.minted_shares
 
     def remove_liquidity(self, lp_share: float) -> tuple[float, float]:
-        if lp_share <= 0:
-            raise InsufficientLiquidityError("LP share must be positive")
-        if self.total_lp_shares <= 0 or lp_share > self.total_lp_shares:
-            raise InsufficientLiquidityError("Not enough liquidity")
+        # 兼容旧接口：实际业务逻辑委托给流动性管理模块。
+        from src.amm.liquidity_manager import LiquidityManager
 
-        share_ratio = lp_share / self.total_lp_shares
-        amount_x = self.reserve_x * share_ratio
-        amount_y = self.reserve_y * share_ratio
-        self.reserve_x -= amount_x
-        self.reserve_y -= amount_y
-        self.total_lp_shares -= lp_share
-        return amount_x, amount_y
+        result = LiquidityManager(self).remove_liquidity(lp_share)
+        return result.amount_x, result.amount_y
 
     def swap(self, direction: str, amount_in: float) -> tuple[float, float]:
-        if amount_in <= 0:
-            raise InsufficientBalanceError("Swap amount must be positive")
+        # 兼容旧接口：实际交易逻辑委托给 AMM 核心模块。
+        from src.amm.engine import AMMEngine
 
-        fee = amount_in * self.fee_rate
-        effective_in = amount_in - fee
-        k = self.reserve_x * self.reserve_y
-
-        if direction == "x_to_y":
-            new_reserve_x = self.reserve_x + effective_in
-            amount_out = self.reserve_y - (k / new_reserve_x)
-            self.reserve_x += amount_in
-            self.reserve_y -= amount_out
-            return amount_out, fee
-
-        if direction == "y_to_x":
-            new_reserve_y = self.reserve_y + effective_in
-            amount_out = self.reserve_x - (k / new_reserve_y)
-            self.reserve_y += amount_in
-            self.reserve_x -= amount_out
-            return amount_out, fee
-
-        raise ValueError(f"Unsupported swap direction: {direction}")
+        result = AMMEngine(self).swap(direction, amount_in)
+        return result.amount_out, result.fee
