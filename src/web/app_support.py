@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from src.application.validation import ValidationResult, validate_simulation_input
 from src.domain.user import User
 from src.infrastructure.config_loader import AppConfig
 
@@ -110,6 +111,13 @@ def build_config_from_runtime_input(
     events: list[dict[str, Any]],
     output_root: str = "data/output/web_runs",
 ) -> AppConfig:
+    validate_runtime_input(
+        initial_reserve_x=initial_reserve_x,
+        initial_reserve_y=initial_reserve_y,
+        fee_rate=fee_rate,
+        users=users,
+        events=events,
+    ).raise_for_errors()
     run_id = uuid4().hex[:12]
     base_dir = Path(output_root) / run_id
     return AppConfig(
@@ -126,3 +134,20 @@ def build_config_from_runtime_input(
 
 def user_pnl_rows(summary_user_pnl: dict[str, Any]) -> list[dict[str, Any]]:
     return [asdict(item) for item in summary_user_pnl.values()]
+
+
+def validate_runtime_input(
+    *,
+    initial_reserve_x: float,
+    initial_reserve_y: float,
+    fee_rate: float,
+    users: dict[str, User],
+    events: list[dict[str, Any]],
+) -> ValidationResult:
+    return validate_simulation_input(
+        initial_reserve_x=initial_reserve_x,
+        initial_reserve_y=initial_reserve_y,
+        fee_rate=fee_rate,
+        users=users,
+        events=events,
+    )

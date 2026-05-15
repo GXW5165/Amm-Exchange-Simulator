@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from pathlib import Path
-import traceback
 
+from src.application.scenarios import build_fee_rate_scenarios, build_large_trade_shock_scenario, build_liquidity_depth_scenarios
 from src.application.simulation_runner import SimulationRunner
 from src.domain.pool import Pool
 from src.domain.user import User
@@ -38,7 +38,7 @@ class AMMCLI:
         while True:
             self._print_menu()
             choice = input("Select an option: ").strip()
-            if choice == "8":
+            if choice == "9":
                 print("Exit.")
                 break
 
@@ -50,6 +50,7 @@ class AMMCLI:
                 "5": self.remove_liquidity,
                 "6": self.view_pool_status,
                 "7": self.view_user_status,
+                "8": self.run_experiment_scenarios,
             }
 
             action = actions.get(choice)
@@ -61,7 +62,6 @@ class AMMCLI:
                 action()
             except Exception as exc:
                 print(f"Operation failed: {exc}")
-                traceback.print_exc()
 
     def _print_menu(self) -> None:
         print("\nAMM Exchange Simulator")
@@ -72,7 +72,8 @@ class AMMCLI:
         print("5. Remove liquidity")
         print("6. View pool status")
         print("7. View user status")
-        print("8. Exit")
+        print("8. Run experiment scenarios")
+        print("9. Exit")
 
     def _require_pool(self) -> Pool:
         if self.pool is None:
@@ -105,6 +106,26 @@ class AMMCLI:
             print(f"Plot {name}: {path}")
         for warning in artifacts.warnings:
             print(f"Warning: {warning}")
+
+    def run_experiment_scenarios(self) -> None:
+        if not self.config_path.exists():
+            print("Default config file not found.")
+            return
+
+        config = load_config(self.config_path)
+        scenarios = {
+            "large_trade_shock": build_large_trade_shock_scenario(config),
+            **build_fee_rate_scenarios(config),
+            **build_liquidity_depth_scenarios(config),
+        }
+        artifacts_by_name = self.runner.run_scenarios(scenarios)
+        for name, artifacts in artifacts_by_name.items():
+            summary = artifacts.result.summary
+            print(
+                f"{name}: events={summary.total_events}, fees_y={summary.total_fees_in_y:.6f}, "
+                f"avg_slippage={summary.average_slippage_pct}, il={summary.impermanent_loss_pct}"
+            )
+            print(f"  summary: {artifacts.summary_path}")
 
     def manual_initialize_pool(self) -> None:
         reserve_x = self._prompt_float("Token X reserve: ")

@@ -15,3 +15,8 @@ def impermanent_loss_pct(initial_price: float, current_price: float) -> float | 
     ratio = current_price / initial_price
     return impermanent_loss_from_price_ratio(ratio) * 100
 
+
+def impermanent_loss_amount_in_y(initial_pool_value_in_y: float, impermanent_loss_rate_pct: float | None) -> float | None:
+    if impermanent_loss_rate_pct is None:
+        return None
+    return initial_pool_value_in_y * impermanent_loss_rate_pct / 100

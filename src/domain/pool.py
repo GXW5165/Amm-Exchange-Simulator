@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import sqrt
 
 
 @dataclass
@@ -12,11 +13,25 @@ class Pool:
     fee_rate: float = 0.003
     total_lp_shares: float = 0.0
 
+    def __post_init__(self) -> None:
+        if self.reserve_x < 0 or self.reserve_y < 0:
+            raise ValueError("Pool reserves must be non-negative")
+        if not 0 <= self.fee_rate < 1:
+            raise ValueError("Fee rate must satisfy 0 <= fee_rate < 1")
+        if self.total_lp_shares < 0:
+            raise ValueError("Total LP shares must be non-negative")
+        if self.reserve_x > 0 and self.reserve_y > 0 and self.total_lp_shares == 0:
+            self.total_lp_shares = sqrt(self.reserve_x * self.reserve_y)
+
     @property
     def spot_price(self) -> float:
         if self.reserve_x <= 0:
             return float("inf")
         return self.reserve_y / self.reserve_x
+
+    @property
+    def spot_price_y_per_x(self) -> float:
+        return self.spot_price
 
     @property
     def invariant(self) -> float:

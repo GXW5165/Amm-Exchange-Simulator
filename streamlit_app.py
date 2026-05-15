@@ -14,6 +14,7 @@ from src.web.app_support import (
     normalize_event_rows,
     normalize_user_rows,
     user_pnl_rows,
+    validate_runtime_input,
 )
 
 
@@ -34,7 +35,7 @@ def _show_result(artifacts, *, section_key: str) -> None:
     metric_columns[2].metric("Liquidity Events", summary.liquidity_events)
     metric_columns[3].metric("Total Fees", f"{summary.total_fees:.6f}")
 
-    metric_columns = st.columns(3)
+    metric_columns = st.columns(4)
     metric_columns[0].metric(
         "Average Slippage (%)",
         "N/A" if summary.average_slippage_pct is None else f"{summary.average_slippage_pct:.6f}",
@@ -47,6 +48,7 @@ def _show_result(artifacts, *, section_key: str) -> None:
         "Impermanent Loss (%)",
         "N/A" if summary.impermanent_loss_pct is None else f"{summary.impermanent_loss_pct:.6f}",
     )
+    metric_columns[3].metric("Total Fees (Y)", f"{summary.total_fees_in_y:.6f}")
 
     if artifacts.warnings:
         for warning in artifacts.warnings:
@@ -155,11 +157,16 @@ def _run_custom_simulation() -> None:
     if st.button("Run Custom Simulation", type="primary", width="stretch"):
         users = normalize_user_rows(user_rows)
         events = normalize_event_rows(event_rows)
-        if not users:
-            st.error("At least one valid user is required.")
-            return
-        if not events:
-            st.error("At least one valid event is required.")
+        validation = validate_runtime_input(
+            initial_reserve_x=initial_reserve_x,
+            initial_reserve_y=initial_reserve_y,
+            fee_rate=fee_rate,
+            users=users,
+            events=events,
+        )
+        if not validation.ok:
+            for error in validation.errors:
+                st.error(error)
             return
 
         config = build_config_from_runtime_input(

@@ -23,5 +23,14 @@ class MetricsCalculator:
         current_users: dict[str, User],
         pool: Pool,
         price_y_per_x: float,
+        initial_price_y_per_x: float | None = None,
+        total_fees_in_y: float = 0.0,
     ) -> dict[str, UserPnL]:
-        return summarize_user_pnl(initial_users, current_users, pool, price_y_per_x)
+        return summarize_user_pnl(
+            initial_users,
+            current_users,
+            pool,
+            price_y_per_x,
+            initial_price_y_per_x=initial_price_y_per_x,
+            total_fees_in_y=total_fees_in_y,
+        )

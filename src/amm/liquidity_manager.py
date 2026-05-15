@@ -37,7 +37,8 @@ class LiquidityManager:
         if amount_x <= 0 or amount_y <= 0:
             raise InsufficientBalanceError("Liquidity amounts must be positive")
 
-        # 首次建池没有历史份额，使用几何平均生成初始 LP 份额。
+        # 首次建池没有可参考的总份额，sqrt(x*y) 能让 LP 份额与池子规模同阶，
+        # 同时避免单边资产数量差异直接放大初始份额。
         if self.pool.reserve_x <= 0 or self.pool.reserve_y <= 0 or self.pool.total_lp_shares <= 0:
             minted_shares = sqrt(amount_x * amount_y)
             self.pool.reserve_x += amount_x
@@ -45,7 +46,8 @@ class LiquidityManager:
             self.pool.total_lp_shares += minted_shares
             return LiquidityAddResult(amount_x, amount_y, minted_shares, self.pool.total_lp_shares)
 
-        # 后续加池按当前储备比例消耗资产，避免破坏池内价格。
+        # 后续加池按当前储备比例消耗资产：多带入的一侧资产不会被使用，
+        # 这样新增 LP 不会通过非比例注入改变现有池内价格。
         share_ratio = min(amount_x / self.pool.reserve_x, amount_y / self.pool.reserve_y)
         if share_ratio <= 0:
             raise InsufficientBalanceError("Invalid liquidity ratio")
@@ -64,7 +66,7 @@ class LiquidityManager:
         if self.pool.total_lp_shares <= 0 or lp_share > self.pool.total_lp_shares:
             raise InsufficientLiquidityError("Not enough liquidity")
 
-        # 减池按 LP 份额占比赎回两侧资产，保持所有 LP 的权益比例一致。
+        # LP 份额代表对池子整体储备的按比例所有权，因此赎回时两侧资产同步按比例减少。
         share_ratio = lp_share / self.pool.total_lp_shares
         amount_x = self.pool.reserve_x * share_ratio
         amount_y = self.pool.reserve_y * share_ratio

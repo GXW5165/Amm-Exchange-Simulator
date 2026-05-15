@@ -6,6 +6,7 @@ from typing import Any
 
 import yaml
 
+from src.application.validation import validate_simulation_input
 from src.domain.user import User
 from src.simulator.event import Event
 from src.simulator.scenario_builder import build_events
@@ -40,7 +41,7 @@ def load_config(path: str | Path) -> AppConfig:
             lp_shares=float(user_data.get("lp_shares", 0.0)),
         )
 
-    return AppConfig(
+    config = AppConfig(
         initial_reserve_x=float(data.get("initial_reserve_x", 0.0)),
         initial_reserve_y=float(data.get("initial_reserve_y", 0.0)),
         fee_rate=float(data.get("fee_rate", 0.003)),
@@ -51,3 +52,11 @@ def load_config(path: str | Path) -> AppConfig:
         users=users,
         events=list(data.get("events") or []),
     )
+    validate_simulation_input(
+        initial_reserve_x=config.initial_reserve_x,
+        initial_reserve_y=config.initial_reserve_y,
+        fee_rate=config.fee_rate,
+        users=config.users,
+        events=config.events,
+    ).raise_for_errors()
+    return config

@@ -48,3 +48,12 @@ class SimulationRunner:
             plot_paths=plot_paths,
             warnings=warnings,
         )
+
+    def run_scenarios(self, scenarios: dict[str, AppConfig]) -> dict[str, SimulationArtifacts]:
+        artifacts: dict[str, SimulationArtifacts] = {}
+        for name, config in scenarios.items():
+            config.log_path = f"data/output/scenarios/{name}/simulation.csv"
+            config.summary_path = f"data/output/scenarios/{name}/summary.json"
+            config.plot_dir = f"data/output/scenarios/{name}/plots"
+            artifacts[name] = self.run_from_config(config)
+        return artifacts

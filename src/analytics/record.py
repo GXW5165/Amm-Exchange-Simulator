@@ -18,6 +18,24 @@ class EventRecord:
     execution_price: Optional[float] = None
     slippage_pct: Optional[float] = None
     lp_total_shares: float = 0.0
+    reserve_x_before: Optional[float] = None
+    reserve_y_before: Optional[float] = None
+    reserve_x_after: Optional[float] = None
+    reserve_y_after: Optional[float] = None
+    wallet_x_before: Optional[float] = None
+    wallet_y_before: Optional[float] = None
+    wallet_x_after: Optional[float] = None
+    wallet_y_after: Optional[float] = None
+    lp_shares_before: Optional[float] = None
+    lp_shares_after: Optional[float] = None
+    amount_x_delta: Optional[float] = None
+    amount_y_delta: Optional[float] = None
+    lp_shares_delta: Optional[float] = None
+    effective_amount_in: Optional[float] = None
+    theoretical_price: Optional[float] = None
+    spot_price_before: Optional[float] = None
+    invariant_before: Optional[float] = None
+    invariant_after: Optional[float] = None
 
     def to_csv_row(self) -> dict[str, Any]:
         return {
@@ -35,5 +53,22 @@ class EventRecord:
             "execution_price": self.execution_price,
             "slippage_pct": self.slippage_pct,
             "lp_total_shares": self.lp_total_shares,
+            "reserve_x_before": self.reserve_x_before,
+            "reserve_y_before": self.reserve_y_before,
+            "reserve_x_after": self.reserve_x_after,
+            "reserve_y_after": self.reserve_y_after,
+            "wallet_x_before": self.wallet_x_before,
+            "wallet_y_before": self.wallet_y_before,
+            "wallet_x_after": self.wallet_x_after,
+            "wallet_y_after": self.wallet_y_after,
+            "lp_shares_before": self.lp_shares_before,
+            "lp_shares_after": self.lp_shares_after,
+            "amount_x_delta": self.amount_x_delta,
+            "amount_y_delta": self.amount_y_delta,
+            "lp_shares_delta": self.lp_shares_delta,
+            "effective_amount_in": self.effective_amount_in,
+            "theoretical_price": self.theoretical_price,
+            "spot_price_before": self.spot_price_before,
+            "invariant_before": self.invariant_before,
+            "invariant_after": self.invariant_after,
         }
-
