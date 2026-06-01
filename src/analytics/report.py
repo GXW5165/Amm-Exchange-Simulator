@@ -92,5 +92,6 @@ def summarize_records(
             price_y_per_x=current_price,
             initial_price_y_per_x=initial_price,
             total_fees_in_y=total_fees_in_y,
+            initial_pool=initial_pool,
         ),
     )

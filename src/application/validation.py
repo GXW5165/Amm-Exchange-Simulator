@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite, sqrt
 from typing import Any
 
 from src.domain.user import User
@@ -34,12 +35,20 @@ class ValidationResult:
 def validate_pool_params(initial_reserve_x: float, initial_reserve_y: float, fee_rate: float) -> ValidationResult:
     """校验资金池初始储备和手续费率。"""
     result = ValidationResult()
+    if not isfinite(initial_reserve_x):
+        result.add("initial_reserve_x must be finite")
+    if not isfinite(initial_reserve_y):
+        result.add("initial_reserve_y must be finite")
+    if not isfinite(fee_rate):
+        result.add("fee_rate must be finite")
     if initial_reserve_x < 0:
         result.add("initial_reserve_x must be non-negative")
     if initial_reserve_y < 0:
         result.add("initial_reserve_y must be non-negative")
     if not 0 <= fee_rate < 1:
         result.add("fee_rate must satisfy 0 <= fee_rate < 1")
+    if (initial_reserve_x == 0) ^ (initial_reserve_y == 0):
+        result.add("initial reserves must be both positive or both zero")
     return result
 
 
@@ -56,14 +65,37 @@ def validate_users(users: dict[str, User]) -> ValidationResult:
     return result
 
 
+def validate_initial_lp_ownership(
+    *,
+    initial_reserve_x: float,
+    initial_reserve_y: float,
+    users: dict[str, User],
+    initial_lp_owner: str | None = "protocol",
+) -> ValidationResult:
+    """校验初始 LP 份额归属是否能与初始池规模匹配。
+
+    初始池非空时 Pool 会按 sqrt(x*y) 生成总 LP 份额；用户配置可显式持有
+    其中一部分，剩余份额会在运行前归给 initial_lp_owner，避免出现无主 LP。
+    """
+    result = ValidationResult()
+    total_user_lp = sum(user.lp_shares for user in users.values())
+    if initial_reserve_x > 0 and initial_reserve_y > 0:
+        initial_total_lp = sqrt(initial_reserve_x * initial_reserve_y)
+        if total_user_lp > initial_total_lp + 1e-9:
+            result.add("sum of user LP shares exceeds initial pool total LP shares")
+        if total_user_lp < initial_total_lp - 1e-9 and not str(initial_lp_owner or "").strip():
+            result.add("initial_lp_owner is required when initial LP shares are not fully assigned")
+    elif total_user_lp > 1e-9:
+        result.add("users cannot hold LP shares when initial pool has no liquidity")
+    return result
+
+
 def validate_events(events: list[dict[str, Any]], users: dict[str, User] | None = None) -> ValidationResult:
     """校验事件序列。
 
     如果传入 users，会额外检查事件中的 user_id 是否已经在用户配置中声明。
     """
     result = ValidationResult()
-    if not events:
-        result.add("at least one event is required")
 
     known_users = set(users or {})
     for index, event in enumerate(events, start=1):
@@ -105,6 +137,7 @@ def validate_simulation_input(
     fee_rate: float,
     users: dict[str, User],
     events: list[dict[str, Any]],
+    initial_lp_owner: str | None = "protocol",
 ) -> ValidationResult:
     # 配置文件、Web 表格和 CLI 扩展场景都复用这一层校验，
     # 保证非法输入在进入核心 AMM 计算前就能被解释清楚。
@@ -112,6 +145,12 @@ def validate_simulation_input(
     for partial in (
         validate_pool_params(initial_reserve_x, initial_reserve_y, fee_rate),
         validate_users(users),
+        validate_initial_lp_ownership(
+            initial_reserve_x=initial_reserve_x,
+            initial_reserve_y=initial_reserve_y,
+            users=users,
+            initial_lp_owner=initial_lp_owner,
+        ),
         validate_events(events, users),
     ):
         result.errors.extend(partial.errors)

@@ -23,7 +23,7 @@ class AppConfig:
     initial_reserve_x: float = 0.0
     initial_reserve_y: float = 0.0
     fee_rate: float = 0.003
-    seed: int | None = None
+    initial_lp_owner: str | None = "protocol"
     log_path: str = "data/output/logs/simulation.csv"
     summary_path: str = "data/output/results/summary.json"
     plot_dir: str = "data/output/results"
@@ -57,7 +57,7 @@ def load_config(path: str | Path) -> AppConfig:
         initial_reserve_x=float(data.get("initial_reserve_x", 0.0)),
         initial_reserve_y=float(data.get("initial_reserve_y", 0.0)),
         fee_rate=float(data.get("fee_rate", 0.003)),
-        seed=data.get("seed"),
+        initial_lp_owner=data.get("initial_lp_owner", "protocol"),
         log_path=str(data.get("log_path", "data/output/logs/simulation.csv")),
         summary_path=str(data.get("summary_path", "data/output/results/summary.json")),
         plot_dir=str(data.get("plot_dir", "data/output/results")),
@@ -68,6 +68,7 @@ def load_config(path: str | Path) -> AppConfig:
         initial_reserve_x=config.initial_reserve_x,
         initial_reserve_y=config.initial_reserve_y,
         fee_rate=config.fee_rate,
+        initial_lp_owner=config.initial_lp_owner,
         users=config.users,
         events=config.events,
     ).raise_for_errors()

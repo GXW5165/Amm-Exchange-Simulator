@@ -9,6 +9,7 @@ from src.application.simulation_runner import SimulationRunner
 from src.domain.pool import Pool
 from src.domain.user import User
 from src.infrastructure.config_loader import load_config
+from src.infrastructure.csv_exporter import export_event_records
 from src.infrastructure.logger import get_logger
 from src.simulator.engine import SimulatorEngine
 from src.simulator.scenario_builder import build_events
@@ -33,14 +34,14 @@ _WHITE = "\033[37m"
 # 常用组合
 TITLE = f"{_BOLD}{_CYAN}"
 SUBTITLE = f"{_BOLD}{_WHITE}"
-HEADER = f"{_BOLD}{_MAGENTA}"
+HEADER = f"{_BOLD}{_CYAN}"     # 改用青色替代洋红
 SUCCESS = f"{_GREEN}"
 ERROR = f"{_RED}"
 WARN = f"{_YELLOW}"
-INFO = f"{_BLUE}"
+INFO = f"{_CYAN}"              # 改用青色替代蓝色
 VALUE = f"{_BOLD}{_WHITE}"
 LABEL = f"{_DIM}{_WHITE}"
-SEP = f"{_DIM}{_MAGENTA}"
+SEP = f"{_DIM}{_WHITE}"        # 改用灰白替代洋红
 
 SEP_LINE = f"{SEP}{'─' * 56}{_RESET}"
 SEP_DOUBLE = f"{SEP}{'═' * 56}{_RESET}"
@@ -117,17 +118,19 @@ class AMMCLI:
         print(f"{SEP_DOUBLE}")
         print(f"  {SUBTITLE}Simulation{_RESET}")
         print(f"    {_BOLD}1.{_RESET}  Run default simulation")
-        print(f"    {_BOLD}8.{_RESET}  Run experiment scenarios")
+        print(f"    {_BOLD}2.{_RESET}  Run experiment scenarios")
         print(f"  {SUBTITLE}Manual Operations{_RESET}")
-        print(f"    {_BOLD}2.{_RESET}  Initialize pool")
-        print(f"    {_BOLD}3.{_RESET}  Execute a swap")
-        print(f"    {_BOLD}4.{_RESET}  Add liquidity")
-        print(f"    {_BOLD}5.{_RESET}  Remove liquidity")
+        print(f"    {_BOLD}3.{_RESET}  Initialize pool")
+        print(f"    {_BOLD}4.{_RESET}  Execute a swap")
+        print(f"    {_BOLD}5.{_RESET}  Add liquidity")
+        print(f"    {_BOLD}6.{_RESET}  Remove liquidity")
         print(f"  {SUBTITLE}Inspect{_RESET}")
-        print(f"    {_BOLD}6.{_RESET}  View pool status")
-        print(f"    {_BOLD}7.{_RESET}  View user status")
+        print(f"    {_BOLD}7.{_RESET}  View pool status")
+        print(f"    {_BOLD}8.{_RESET}  View user status")
+        print(f"  {SUBTITLE}Export{_RESET}")
+        print(f"    {_BOLD}9.{_RESET}  Export records to CSV")
         print(f"  {SUBTITLE}System{_RESET}")
-        print(f"    {_BOLD}9.{_RESET}  Exit")
+        print(f"    {_BOLD}0.{_RESET}  Exit")
         print(f"{SEP_DOUBLE}")
 
     def run(self) -> None:
@@ -135,24 +138,26 @@ class AMMCLI:
         while True:
             self._print_menu()
             choice = input(f"  {_BOLD}▸ Select an option:{_RESET} ").strip()
-            if choice == "9":
+            if choice == "0":
+                self._prompt_export_on_exit()
                 print(f"\n  {_DIM}Goodbye.{_RESET}\n")
                 break
 
-            actions = {
+            actions: dict[str, object] = {
                 "1": self.run_default_simulation,
-                "2": self.manual_initialize_pool,
-                "3": self.execute_swap,
-                "4": self.add_liquidity,
-                "5": self.remove_liquidity,
-                "6": self.view_pool_status,
-                "7": self.view_user_status,
-                "8": self.run_experiment_scenarios,
+                "2": self.run_experiment_scenarios,
+                "3": self.manual_initialize_pool,
+                "4": self.execute_swap,
+                "5": self.add_liquidity,
+                "6": self.remove_liquidity,
+                "7": self.view_pool_status,
+                "8": self.view_user_status,
+                "9": self.export_records,
             }
 
             action = actions.get(choice)
             if action is None:
-                print(f"\n  {ERROR}Invalid option — please enter 1–9.{_RESET}")
+                print(f"\n  {ERROR}Invalid option — please enter 0–9.{_RESET}")
                 self._press_any_key()
                 continue
 
@@ -356,6 +361,28 @@ class AMMCLI:
                 f"{user.lp_shares:>14.6f}"
             )
 
+    def export_records(self) -> None:
+        """导出当前已处理事件记录为 CSV，默认输出到 data/output/interactive/。"""
+        if not self.engine.records:
+            self._err("No records to export — run some operations first.")
+            return
+
+        output_dir = self.root_dir / "data" / "output" / "interactive"
+        output_dir.mkdir(parents=True, exist_ok=True)
+        csv_path = export_event_records(self.engine.records, output_dir / "simulation.csv")
+        self._ok(f"Records exported to {csv_path}")
+
+    def _prompt_export_on_exit(self) -> None:
+        """退出前如果存在未导出的事件记录，提示用户是否导出。"""
+        if not self.engine.records:
+            return
+        choice = input(
+            f"\n  {WARN}You have {len(self.engine.records)} unsaved event record(s). "
+            f"Export to CSV before exit? [y/N]:{_RESET} "
+        ).strip().lower()
+        if choice in {"y", "yes"}:
+            self.export_records()
+
     def _prompt_float(self, prompt: str) -> float:
         """循环读取浮点数，直到用户输入合法为止。"""
         while True:
@@ -388,9 +415,9 @@ def _print_artifact_summary(artifacts, *, label: str = "simulation") -> None:
     print(f"[{label}] liquidity_events={summary.liquidity_events}")
     print(f"[{label}] total_fees={summary.total_fees:.6f}")
     print(f"[{label}] total_fees_in_y={summary.total_fees_in_y:.6f}")
-    print(f"[{label}] average_slippage_pct={summary.average_slippage_pct}")
-    print(f"[{label}] max_slippage_pct={summary.max_slippage_pct}")
-    print(f"[{label}] impermanent_loss_pct={summary.impermanent_loss_pct}")
+    print(f"[{label}] average_slippage_pct={_p(summary.average_slippage_pct)}")
+    print(f"[{label}] max_slippage_pct={_p(summary.max_slippage_pct)}")
+    print(f"[{label}] impermanent_loss_pct={_p(summary.impermanent_loss_pct)}")
     print(f"[{label}] csv={artifacts.csv_path}")
     print(f"[{label}] summary={artifacts.summary_path}")
     for name, path in artifacts.plot_paths.items():
@@ -458,7 +485,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.demo or args.config or args.scenarios:
         config_path = args.config or "configs/default.yaml"
-        return run_config_once(config_path, run_scenarios=args.scenarios)
+        try:
+            return run_config_once(config_path, run_scenarios=args.scenarios)
+        except Exception as exc:
+            print(f"[error] {exc}")
+            return 1
 
     AMMCLI().run()
     return 0

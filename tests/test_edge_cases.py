@@ -234,6 +234,24 @@ def test_same_timestamp_events_preserve_enqueue_order() -> None:
     assert result.records[1].event_id == 2
 
 
+def test_simulator_engine_run_is_one_shot() -> None:
+    """同一个仿真引擎重复 run 会拒绝，避免旧记录和新状态混在一起。"""
+    pool = Pool(1000.0, 1000.0, 0.0)
+    users = {"alice": User("alice", balance_x=100.0, balance_y=0.0)}
+    engine = SimulatorEngine(pool, users)
+    event = Event(
+        timestamp=1.0,
+        event_id=1,
+        event_type=EventType.SWAP,
+        user_id="alice",
+        payload={"direction": "x_to_y", "amount_in": 5.0},
+    )
+
+    engine.run([event])
+    with pytest.raises(RuntimeError, match="SimulatorEngine.run\\(\\) has already been called"):
+        engine.run([event])
+
+
 # ── 滑点边界 ────────────────────────────────────────────────────────
 
 

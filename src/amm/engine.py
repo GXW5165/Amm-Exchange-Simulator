@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from src.analytics.slippage import calculate_slippage_pct
 from src.domain.exceptions import InsufficientBalanceError
 from src.domain.pool import Pool
 
@@ -28,22 +29,66 @@ class SwapQuote:
 
 @dataclass(frozen=True)
 class SwapResult:
-    """交易执行结果：包含成交数据和交易后的资金池快照。"""
+    """交易执行结果：包装报价对象并附加交易后的池状态快照。
 
-    direction: str
-    amount_in: float
-    effective_amount_in: float
-    amount_out: float
-    fee: float
-    execution_price: float
-    theoretical_price: float
-    slippage_pct: float | None
+    SwapQuote 已经包含本次兑换的完整指标；SwapResult 在其上附加成交后的
+    reserve_x/reserve_y，避免在 SwapQuote 和 SwapResult 之间重复维护字段。
+    通过 @property 转发 SwapQuote 的常用字段，外部调用方无需感知包装关系。
+    """
+
+    quote: SwapQuote
     reserve_x: float
     reserve_y: float
-    reserve_x_before: float
-    reserve_y_before: float
-    spot_price_before: float
-    spot_price_after: float
+
+    # ── 转发 SwapQuote 字段，保持与旧接口兼容 ──────────────────────
+
+    @property
+    def direction(self) -> str:
+        return self.quote.direction
+
+    @property
+    def amount_in(self) -> float:
+        return self.quote.amount_in
+
+    @property
+    def effective_amount_in(self) -> float:
+        return self.quote.effective_amount_in
+
+    @property
+    def amount_out(self) -> float:
+        return self.quote.amount_out
+
+    @property
+    def fee(self) -> float:
+        return self.quote.fee
+
+    @property
+    def execution_price(self) -> float:
+        return self.quote.execution_price
+
+    @property
+    def theoretical_price(self) -> float:
+        return self.quote.theoretical_price
+
+    @property
+    def slippage_pct(self) -> float | None:
+        return self.quote.slippage_pct
+
+    @property
+    def reserve_x_before(self) -> float:
+        return self.quote.reserve_x_before
+
+    @property
+    def reserve_y_before(self) -> float:
+        return self.quote.reserve_y_before
+
+    @property
+    def spot_price_before(self) -> float:
+        return self.quote.spot_price_before
+
+    @property
+    def spot_price_after(self) -> float:
+        return self.quote.spot_price_after
 
 
 class AMMEngine:
@@ -92,10 +137,8 @@ class AMMEngine:
             raise ValueError(f"Unsupported swap direction: {direction}")
 
         # execution_price 使用 amount_out / amount_in，表示用户实际每投入 1 单位输入资产换出的输出资产。
-        slippage_pct = None
         execution_price = amount_out / amount_in
-        if theoretical_price > 0 and theoretical_price != float("inf"):
-            slippage_pct = abs(execution_price - theoretical_price) / theoretical_price * 100
+        slippage_pct = calculate_slippage_pct(theoretical_price, execution_price)
         spot_price_after = reserve_y_after / reserve_x_after if reserve_x_after > 0 else float("inf")
         return SwapQuote(
             direction=direction,
@@ -129,18 +172,7 @@ class AMMEngine:
             raise ValueError(f"Unsupported swap direction: {direction}")
 
         return SwapResult(
-            direction=quote.direction,
-            amount_in=quote.amount_in,
-            effective_amount_in=quote.effective_amount_in,
-            amount_out=quote.amount_out,
-            fee=quote.fee,
-            execution_price=quote.execution_price,
-            theoretical_price=quote.theoretical_price,
-            slippage_pct=quote.slippage_pct,
+            quote=quote,
             reserve_x=self.pool.reserve_x,
             reserve_y=self.pool.reserve_y,
-            reserve_x_before=quote.reserve_x_before,
-            reserve_y_before=quote.reserve_y_before,
-            spot_price_before=quote.spot_price_before,
-            spot_price_after=quote.spot_price_after,
         )

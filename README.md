@@ -1,222 +1,267 @@
-# AMM Exchange Simulator
+# 📈 AMM Exchange Simulator
 
-本项目是一个本地离线运行的 AMM 交易所仿真系统，面向课程设计、DeFi 机制学习和实验分析。系统以 `construction/` 中的需求分析与概要设计为方向，聚焦单交易对、单资金池、恒定乘积模型 `x * y = k`，完整覆盖交易、LP 流动性操作、手续费、滑点、无常损失、用户收益、日志导出和图表展示。
+> **恒定乘积自动做市商 · 离线仿真系统**
 
-项目不连接真实区块链节点，不处理真实资产，也不作为任何金融建议。
+本地离线 AMM 交易所仿真系统，基于恒定乘积模型 `x · y = k`，支持多用户、离散事件调度、流动性管理、手续费分析、滑点计算、无常损失评估和可视化图表输出。
 
-## 功能完成情况
+面向 DeFi 机制学习、课程设计和量化实验分析。**不连接区块链节点，不处理真实资产。**
 
-| 需求 | 状态 | 说明 |
-| --- | --- | --- |
-| 恒定乘积双向兑换 | 已实现 | 支持 `x_to_y` 和 `y_to_x`，按扣费后的有效输入定价 |
-| 交易滑点 | 已实现 | 记录理论价格、成交价格和百分比滑点 |
-| LP 添加流动性 | 已实现 | 首次/后续加池自动计算 LP 份额，保持池内比例 |
-| LP 移除流动性 | 已实现 | 按 LP 份额比例赎回两侧资产 |
-| 手续费累计与 LP 收益 | 已实现 | 手续费留在池内，并在收益分析中折算为 Y 计价 |
-| 无常损失 | 已实现 | 输出无常损失率和按当前价值估算的损失金额 |
-| 离散事件仿真 | 已实现 | 事件队列按时间戳稳定调度 |
-| 参数配置 | 已实现 | 支持 YAML 默认配置和 Web 手动输入 |
-| CSV/JSON 导出 | 已实现 | 输出事件日志和结构化摘要 |
-| CLI | 已实现 | 支持一键仿真、手动操作和场景实验 |
-| 可视化 | 已实现 | 输出价格、储备、滑点、手续费、无常损失、用户收益图 |
-| 多用户模拟 | 已实现 | 每个用户独立维护钱包余额和 LP 份额 |
-| 极端场景/参数对比 | 已实现 | 支持大额交易冲击、手续费率对比、流动性深度对比 |
-| Streamlit Web | 已实现 | 支持参数编辑、事件编辑、结果表格、图表和下载 |
+---
 
-## 架构
+## 🚀 快速开始
 
-```text
-Interface Layer
-  -> Application Layer
-    -> Simulator Layer
-      -> AMM Service Layer
-        -> Domain Layer
-        -> Analytics / Infrastructure / Visualization
+```bash
+# 安装依赖
+pip install -r requirements.txt
+
+# 一键运行 Demo
+python main.py --demo
+
+# 运行 Demo + 对比实验场景
+python main.py --config configs/default.yaml --scenarios
+
+# 交互式 CLI
+python main.py
+
+# 启动 Web 界面
+python -m streamlit run streamlit_app.py
 ```
 
-核心模块如下：
+---
 
-- `src/domain/`：资金池、用户、异常等领域对象。
-- `src/amm/`：恒定乘积交易引擎和流动性管理。
-- `src/simulator/`：事件、事件队列、仿真调度和仿真结果。
-- `src/analytics/`：滑点、无常损失、PnL、汇总报告和事件记录。
-- `src/application/`：完整仿真运行、输入校验、实验场景构造。
-- `src/infrastructure/`：配置加载、CSV 导出、JSON 导出、日志。
-- `src/visualization/`：PNG 图表生成。
-- `src/interface/`：CLI 入口。
-- `src/web/` 与 `streamlit_app.py`：Streamlit Web 交互。
+## 📋 功能
 
-## 核心模型
+| 模块 | 功能 |
+|------|------|
+| **AMM 交易** | 双向兑换（X→Y / Y→X），恒定乘积定价，手续费扣费与池内沉淀 |
+| **流动性管理** | LP 添加/移除，首次建池自动铸造份额，后续按比例约束 |
+| **滑点分析** | 理论价格 vs 成交价格，百分比滑点记录 |
+| **无常损失** | 基于价格比的标准 IL 公式，支持百分比和金额形式 |
+| **用户 PnL** | 按 Token Y 统一计价，钱包 + LP 仓位合并收益统计 |
+| **离散事件仿真** | 按时间戳优先队列调度，同时间保持入队顺序 |
+| **多用户** | 独立钱包余额与 LP 份额，自动创建新用户 |
+| **配置驱动** | YAML 文件定义池参数、用户初始状态和事件序列 |
+| **CSV / JSON 导出** | 事件级日志（35 字段）和结构化摘要 |
+| **可视化图表** | 价格、储备、滑点、累计手续费、无常损失、用户 PnL（6 张 PNG） |
+| **实验场景** | 大额交易冲击、手续费率对比、流动性深度对比 |
+| **Web 界面** | Streamlit 参数编辑、事件表格、结果展示、配置保存/加载 |
+| **CLI 交互** | 交互式菜单 + 非交互式命令行参数 |
 
-交易使用恒定乘积模型：
+---
 
-```text
-k = x * y
-dx' = dx * (1 - fee_rate)
+## 🏗️ 项目架构
+
+项目采用严格的分层架构，依赖方向**自上而下单向流动**，下层完全不感知上层。
+
+```
+AMM-Exchange-Simulator/
+│
+├── src/                          # 核心代码目录
+│   │
+│   ├── domain/                   # ── 领域层 ──
+│   │   ├── pool.py                 资金池状态（x·y = k）
+│   │   ├── user.py                 用户钱包与 LP 份额
+│   │   └── exceptions.py           异常类型
+│   │
+│   ├── amm/                      # ── AMM 服务层 ──
+│   │   ├── engine.py               恒定乘积交易引擎（报价 + 执行）
+│   │   └── liquidity_manager.py    LP 份额铸造/销毁
+│   │
+│   ├── simulator/                # ── 仿真层 ──
+│   │   ├── engine.py               仿真控制模块（事件调度主循环）
+│   │   ├── event.py                事件 / 事件类型定义
+│   │   ├── event_queue.py          基于 heapq 的稳定优先队列
+│   │   ├── result.py               仿真结果对象
+│   │   └── scenario_builder.py     原始字典 → Event 对象转换
+│   │
+│   ├── application/               # ── 应用层 ──
+│   │   ├── simulation_runner.py    配置驱动运行 + 导出编排
+│   │   ├── validation.py           输入校验（5 个验证器）
+│   │   └── scenarios.py            实验场景构造
+│   │
+│   ├── analytics/                 # ── 分析层 ──
+│   │   ├── record.py               事件记录（35 字段快照）
+│   │   ├── slippage.py             滑点计算
+│   │   ├── impermanent_loss.py     无常损失计算
+│   │   ├── pnl.py                  用户收益计算
+│   │   └── report.py               聚合摘要报告
+│   │
+│   ├── infrastructure/            # ── 基础设施层 ──
+│   │   ├── config_loader.py        YAML → AppConfig
+│   │   ├── csv_exporter.py         事件日志 → CSV
+│   │   ├── summary_exporter.py     摘要 → JSON
+│   │   └── logger.py               日志记录器
+│   │
+│   ├── interface/                 # ── 接口层 ──
+│   │   └── cli.py                  交互式 / 非交互式 CLI
+│   │
+│   ├── visualization/             # ── 可视化层 ──
+│   │   └── plotter.py              6 张 PNG 图表生成
+│   │
+│   └── web/                       # ── Web 支撑层 ──
+│       └── app_support.py          Streamlit 数据转换
+│
+├── streamlit_app.py               # Streamlit Web 入口
+├── main.py                        # CLI 入口
+│
+├── configs/
+│   └── default.yaml               # 默认配置文件
+│
+├── data/
+│   ├── saved_configs/             # Web 保存的用户配置
+│   ├── sample_price_history.csv   # 示例价格数据
+│   └── output/                    # 仿真输出（日志、摘要、图表）
+│
+├── tests/                         # 47 个测试用例
+│
+├── requirements.txt               # Python 依赖
+└── README.md                      # ← 你现在正在看这里
+```
+
+### 分层说明
+
+| 层 | 职责 | 依赖方向 |
+|:---|:-----|:--------|
+| **Interface** | CLI + Web 用户交互 | → 调用 Application |
+| **Application** | 运行编排、校验、场景 | → 调用 Simulator / Infrastructure |
+| **Simulator** | 事件调度、流程控制 | → 调用 AMM / Analytics |
+| **AMM Service** | 交易报价、流动性计算 | → 调用 Domain |
+| **Domain** | 资金池、用户等核心数据模型 | — 无依赖 |
+| **Analytics** | 滑点、IL、PnL、报告 | → 调用 Domain |
+| **Infrastructure** | 配置加载、文件导出 | — 被各层调用 |
+
+---
+
+## 📐 核心模型
+
+### 恒定乘积交易
+
+```
+k = x · y
+dx' = dx · (1 - fee)
 dy = y - k / (x + dx')
 ```
 
-注意：定价使用扣费后的 `dx'`，但池子实际增加的是用户输入总额 `dx`，手续费留在池中并由 LP 按份额隐含获得。
+- 定价使用扣费后的 `dx'`，但池子实际收到全额 `dx`（手续费沉淀在池内）
+- 手续费使 `k` 持续增长，LP 份额持有人按比例隐含收益
+- **零费率时 `k` 严格不变**
 
-滑点：
+### 滑点
 
-```text
-slippage = abs(P_actual - P_theory) / P_theory * 100
+```
+slippage = |P_execution - P_theoretical| / P_theoretical × 100%
 ```
 
-无常损失：
+### 无常损失（50/50 双资产池）
 
-```text
-IL(r) = 2 * sqrt(r) / (1 + r) - 1
+```
+IL(r) = 2·√r / (1 + r) - 1     其中 r = P_current / P_initial
 ```
 
-## 运行环境
+---
 
-- Python >= 3.10
-- 推荐 Conda 环境：`D:\miniconda3\envs\jrrg`
+## ⚙️ 配置文件
 
-安装依赖：
+默认配置位于 `configs/default.yaml`：
 
-```powershell
-D:\miniconda3\envs\jrrg\python.exe -m pip install -r requirements.txt
+```yaml
+initial_reserve_x: 1000.0    # 初始 Token X 储备
+initial_reserve_y: 1000.0    # 初始 Token Y 储备
+fee_rate: 0.003              # 手续费率 (0 ≤ fee < 1)
+initial_lp_owner: protocol   # 未分配 LP 份额的归属账户
+
+users:                       # 用户初始余额与 LP 份额
+  alice:
+    balance_x: 500.0
+    balance_y: 500.0
+    lp_shares: 0.0
+  bob:
+    balance_x: 300.0
+    balance_y: 300.0
+    lp_shares: 0.0
+
+events:                      # 按时序执行的事件
+  - timestamp: 1
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 10.0
+  - timestamp: 2
+    event_type: add_liquidity
+    user_id: bob
+    amount_x: 20.0
+    amount_y: 20.0
 ```
 
-## 运行 CLI
+### 事件类型
 
-交互式菜单：
+| 类型 | 必填字段 |
+|------|---------|
+| `swap` | `direction` (x_to_y / y_to_x), `amount_in` (> 0) |
+| `add_liquidity` | `amount_x` (> 0), `amount_y` (> 0) |
+| `remove_liquidity` | `lp_share` (> 0) |
 
-```powershell
-D:\miniconda3\envs\jrrg\python.exe main.py
+可通过 **Web 界面** 交互式编辑参数并保存为新 YAML 文件，也可直接编写 YAML 后通过 CLI 加载。
+
+---
+
+## 📂 输出文件
+
+默认仿真输出至 `data/output/`：
+
+```
+data/output/
+├── logs/
+│   └── simulation.csv             # 事件级日志（35 字段）
+└── results/
+    ├── summary.json               # 结构化摘要
+    ├── pool_spot_price.png        # 现货价格走势
+    ├── pool_reserves.png          # 双边储备变化
+    ├── swap_slippage.png          # 交易滑点
+    ├── cumulative_fees.png        # 累计手续费（Y 计价）
+    ├── impermanent_loss.png       # 无常损失百分比
+    └── user_total_pnl.png         # 用户总收益柱状图
 ```
 
-非交互式一键 Demo：
+实验场景输出至 `data/output/scenarios/<name>/`，Web 运行输出至 `data/output/web_runs/<run_id>/`。
 
-```powershell
-D:\miniconda3\envs\jrrg\python.exe main.py --config configs/default.yaml
+---
+
+## 🧪 测试
+
+```bash
+# 运行全部 47 个测试
+python -m pytest -q
 ```
 
-等价的默认 Demo 快捷参数：
+| 测试文件 | 覆盖内容 |
+|----------|---------|
+| `tests/test_pool.py` | AMM 交易与流动性核心 |
+| `tests/test_liquidity.py` | LP 添加/移除完整流程 |
+| `tests/test_simulator.py` | 仿真引擎与事件调度 |
+| `tests/test_analytics.py` | 滑点、无常损失、PnL |
+| `tests/test_edge_cases.py` | 边界条件与极端场景 |
+| `tests/test_runner.py` | SimulationRunner 完整流程 |
+| `tests/test_validation.py` | 输入校验 |
+| `tests/test_visualization.py` | 图表生成 |
+| `tests/test_web_support.py` | Web 层数据转换 |
+| `tests/test_scenarios.py` | 实验场景构造 |
+| `tests/test_cli_demo.py` | CLI 非交互式 Demo |
 
-```powershell
-D:\miniconda3\envs\jrrg\python.exe main.py --demo
-```
+---
 
-如果需要同时运行内置对比实验场景：
+## 📌 项目边界
 
-```powershell
-D:\miniconda3\envs\jrrg\python.exe main.py --config configs/default.yaml --scenarios
-```
+- 单交易对、单资金池
+- 恒定乘积 AMM（不包含恒定和、恒定均值等变体）
+- 本地离线仿真（不接链上 API、不处理真实资产）
+- 不涉及借贷、清算、DAO 治理等其他 DeFi 方向
 
-CLI 支持：
+> 可基于当前分层架构扩展套利机器人、多池路由、历史价格回测等功能。
 
-- 默认配置仿真
-- 手动初始化资金池
-- 手动执行交易
-- 添加/移除流动性
-- 查看池状态和用户状态
-- 运行实验场景，包括大额冲击、手续费对比、流动性深度对比
+---
 
-## 运行 Web
+## 🔧 环境要求
 
-```powershell
-D:\miniconda3\envs\jrrg\python.exe -m streamlit run streamlit_app.py
-```
-
-默认地址通常为：
-
-```text
-http://localhost:8501
-```
-
-Web 页面支持：
-
-- 一键运行默认配置
-- 编辑初始池参数、用户资产和事件序列
-- 输入校验与错误提示
-- 查看摘要指标、事件日志、用户收益表
-- 下载 CSV 日志和 JSON 摘要
-- 查看自动生成的 PNG 图表
-
-## 配置文件
-
-默认配置位于：
-
-```text
-configs/default.yaml
-```
-
-关键字段：
-
-- `initial_reserve_x`：初始 Token X 储备
-- `initial_reserve_y`：初始 Token Y 储备
-- `fee_rate`：手续费率，要求 `0 <= fee_rate < 1`
-- `users`：用户初始余额与 LP 份额
-- `events`：按时间执行的仿真事件
-- `log_path`：CSV 日志输出路径
-- `summary_path`：JSON 摘要输出路径
-- `plot_dir`：图表输出目录
-
-## 输出文件
-
-默认仿真输出：
-
-```text
-data/output/logs/simulation.csv
-data/output/results/summary.json
-data/output/results/pool_spot_price.png
-data/output/results/pool_reserves.png
-data/output/results/swap_slippage.png
-data/output/results/cumulative_fees.png
-data/output/results/impermanent_loss.png
-data/output/results/user_total_pnl.png
-```
-
-实验场景输出：
-
-```text
-data/output/scenarios/<scenario_name>/
-```
-
-## 日志字段
-
-CSV 事件日志包含可还原仿真过程的核心字段：
-
-- 事件信息：`event_id`、`timestamp`、`user_id`、`event_type`、`direction`
-- 交易信息：`amount_in`、`effective_amount_in`、`amount_out`、`fee`
-- 价格指标：`spot_price_before`、`spot_price`、`theoretical_price`、`execution_price`、`slippage_pct`
-- 池状态：`reserve_x_before`、`reserve_y_before`、`reserve_x_after`、`reserve_y_after`
-- 用户状态：`wallet_x_before`、`wallet_y_before`、`wallet_x_after`、`wallet_y_after`
-- LP 状态：`lp_shares_before`、`lp_shares_after`、`lp_shares_delta`、`lp_total_shares`
-- 一致性指标：`invariant_before`、`invariant_after`
-
-## 测试
-
-运行全部测试：
-
-```powershell
-D:\miniconda3\envs\jrrg\python.exe -m pytest -q
-```
-
-当前测试覆盖：
-
-- 恒定乘积交易
-- LP 添加和移除
-- 滑点、无常损失、用户收益
-- 默认配置完整运行
-- CSV/JSON/PNG 导出
-- Web 输入归一化
-- 输入校验
-- 实验场景构造
-
-## 项目边界
-
-当前版本严格聚焦课程设计核心边界：
-
-- 单交易对
-- 单资金池
-- 恒定乘积 AMM
-- 本地离线仿真
-- 不接链上 API
-- 不做真实交易
-
-套利、多池路由、历史价格回测、恒定均值模型等功能可以基于现有分层继续扩展，但不作为本版本核心验收目标。
+- Python ≥ 3.10
+- 依赖详见 [`requirements.txt`](requirements.txt)

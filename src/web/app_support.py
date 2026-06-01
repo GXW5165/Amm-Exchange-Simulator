@@ -113,6 +113,7 @@ def build_config_from_runtime_input(
     fee_rate: float,
     users: dict[str, User],
     events: list[dict[str, Any]],
+    initial_lp_owner: str | None = "protocol",
     output_root: str = "data/output/web_runs",
 ) -> AppConfig:
     """根据 Web 页面输入构造 AppConfig。
@@ -120,19 +121,15 @@ def build_config_from_runtime_input(
     每次自定义运行都会生成一个短 run_id，把 CSV、JSON 和图表输出到独立目录，
     避免多次点击运行时互相覆盖。
     """
-    validate_runtime_input(
-        initial_reserve_x=initial_reserve_x,
-        initial_reserve_y=initial_reserve_y,
-        fee_rate=fee_rate,
-        users=users,
-        events=events,
-    ).raise_for_errors()
+    # 校验已由调用方（streamlit_app）和 SimulationRunner.run_from_config 覆盖，
+    # 这里不再重复校验，避免 Web 路径三层校验。
     run_id = uuid4().hex[:12]
     base_dir = Path(output_root) / run_id
     return AppConfig(
         initial_reserve_x=initial_reserve_x,
         initial_reserve_y=initial_reserve_y,
         fee_rate=fee_rate,
+        initial_lp_owner=initial_lp_owner,
         log_path=(base_dir / "simulation.csv").as_posix(),
         summary_path=(base_dir / "summary.json").as_posix(),
         plot_dir=base_dir.as_posix(),
@@ -177,6 +174,7 @@ def save_config_to_yaml(
     fee_rate: float,
     users: dict[str, User],
     events: list[dict[str, Any]],
+    initial_lp_owner: str | None = "protocol",
     output_dir: str = "data/saved_configs",
 ) -> Path:
     """将当前自定义参数保存为 YAML 配置文件，供后续加载复用。"""
@@ -191,6 +189,7 @@ def save_config_to_yaml(
         "initial_reserve_x": initial_reserve_x,
         "initial_reserve_y": initial_reserve_y,
         "fee_rate": fee_rate,
+        "initial_lp_owner": initial_lp_owner,
         "users": {
             uid: {
                 "balance_x": u.balance_x,
@@ -249,12 +248,14 @@ def validate_runtime_input(
     fee_rate: float,
     users: dict[str, User],
     events: list[dict[str, Any]],
+    initial_lp_owner: str | None = "protocol",
 ) -> ValidationResult:
     """Web 层复用应用层统一校验，保持错误口径一致。"""
     return validate_simulation_input(
         initial_reserve_x=initial_reserve_x,
         initial_reserve_y=initial_reserve_y,
         fee_rate=fee_rate,
+        initial_lp_owner=initial_lp_owner,
         users=users,
         events=events,
     )

@@ -130,6 +130,7 @@ def _render_save_load_ui(
     initial_reserve_x: float,
     initial_reserve_y: float,
     fee_rate: float,
+    initial_lp_owner: str | None,
     user_rows: list[dict],
     event_rows: list[dict],
 ) -> None:
@@ -159,6 +160,7 @@ def _render_save_load_ui(
                         initial_reserve_x=initial_reserve_x,
                         initial_reserve_y=initial_reserve_y,
                         fee_rate=fee_rate,
+                        initial_lp_owner=initial_lp_owner,
                         users=users,
                         events=events,
                     )
@@ -182,6 +184,10 @@ def _render_save_load_ui(
                     if data:
                         st.session_state[f"{section_key}_loaded_config"] = data
                         st.session_state[f"{section_key}_loaded_name"] = sel_name
+                        st.session_state[f"{section_key}_editor_version"] = (
+                            st.session_state.get(f"{section_key}_editor_version", 0) + 1
+                        )
+                        st.session_state.pop(f"{section_key}_artifacts", None)
                         st.rerun()
             if btn_cols[1].button("🗑 Delete", width="stretch", key=f"{section_key}_del_btn"):
                 if sel_name and sel_name != "(select to load)":
@@ -221,6 +227,19 @@ def _run_custom_simulation() -> None:
 
     # ── 池参数 ──
     default_config = load_config(DEFAULT_CONFIG_PATH)
+    loaded = st.session_state.pop("custom_loaded_config", None)
+    if loaded:
+        # Streamlit widget state must be updated before the widgets are created,
+        # otherwise loaded configs would only refresh the event/user tables.
+        st.session_state["custom_reserve_x"] = float(
+            loaded.get("initial_reserve_x", default_config.initial_reserve_x)
+        )
+        st.session_state["custom_reserve_y"] = float(
+            loaded.get("initial_reserve_y", default_config.initial_reserve_y)
+        )
+        st.session_state["custom_fee_rate"] = float(loaded.get("fee_rate", default_config.fee_rate))
+        st.session_state["custom_initial_lp_owner"] = str(loaded.get("initial_lp_owner", "protocol") or "protocol")
+
     left, right = st.columns([1, 1.2])
     with left:
         initial_reserve_x = st.number_input(
@@ -246,10 +265,15 @@ def _run_custom_simulation() -> None:
             format="%.6f",
             key="custom_fee_rate",
         )
+        initial_lp_owner = st.text_input(
+            "Initial LP Owner",
+            value=str(default_config.initial_lp_owner or "protocol"),
+            key="custom_initial_lp_owner",
+            help="Receives any initial LP shares not explicitly assigned to users.",
+        )
 
     # ── 用户编辑表格 ──
     # 如果从保存配置加载了数据，则以此初始化表格
-    loaded = st.session_state.pop("custom_loaded_config", None)
     if loaded:
         user_rows_default = [
             {
@@ -262,6 +286,7 @@ def _run_custom_simulation() -> None:
         ] or build_default_user_rows(default_config.users)
     else:
         user_rows_default = build_default_user_rows(default_config.users)
+    editor_version = st.session_state.get("custom_editor_version", 0)
 
     with right:
         st.caption("👥 Users  (add rows via bottom blank row)")
@@ -269,7 +294,7 @@ def _run_custom_simulation() -> None:
             user_rows_default,
             num_rows="dynamic",
             use_container_width=True,
-            key="custom_user_editor",
+            key=f"custom_user_editor_{editor_version}",
         )
 
     # ── 事件编辑表格 ──
@@ -283,7 +308,7 @@ def _run_custom_simulation() -> None:
         event_rows_default,
         num_rows="dynamic",
         use_container_width=True,
-        key="custom_event_editor",
+        key=f"custom_event_editor_{editor_version}",
         column_config={
             "event_type": st.column_config.SelectboxColumn(
                 "event_type",
@@ -305,6 +330,7 @@ def _run_custom_simulation() -> None:
             initial_reserve_x=initial_reserve_x,
             initial_reserve_y=initial_reserve_y,
             fee_rate=fee_rate,
+            initial_lp_owner=initial_lp_owner,
             user_rows=user_rows,
             event_rows=event_rows,
         )
@@ -317,6 +343,7 @@ def _run_custom_simulation() -> None:
             initial_reserve_x=initial_reserve_x,
             initial_reserve_y=initial_reserve_y,
             fee_rate=fee_rate,
+            initial_lp_owner=initial_lp_owner,
             users=users,
             events=events,
         )
@@ -329,6 +356,7 @@ def _run_custom_simulation() -> None:
             initial_reserve_x=initial_reserve_x,
             initial_reserve_y=initial_reserve_y,
             fee_rate=fee_rate,
+            initial_lp_owner=initial_lp_owner,
             users=users,
             events=events,
         )

@@ -1,20 +1,16 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from pathlib import Path
 
 from src.amm import AMMEngine, LiquidityManager
-from src.analytics.metrics import MetricsCalculator
 from src.analytics.record import EventRecord
 from src.domain.exceptions import InsufficientBalanceError, InsufficientLiquidityError, InvalidEventError, PoolNotInitializedError
 from src.domain.pool import Pool
 from src.domain.user import User
-from src.infrastructure.csv_exporter import export_event_records
 
 from .event import Event, EventType
 from .event_queue import EventQueue
 from .result import SimulationResult
-from .scenario_builder import build_events
 
 
 class SimulatorEngine:
@@ -28,7 +24,20 @@ class SimulatorEngine:
         self.records: list[EventRecord] = []
         self.initial_pool = deepcopy(pool) if pool is not None else None
         self.initial_users = deepcopy(self.users)
-        self.metrics = MetricsCalculator()
+        self._has_run = False
+
+    def reset(self) -> None:
+        """重置内部状态以便同一实例再次运行。
+
+        清空事件队列、已处理记录和运行保护标志；资金池和用户状态不受影响，
+        调用方可以在重置后重新调度事件并再次调用 run()。
+
+        注意：reset() 不会恢复 pool 和 users 到构造时的初始状态；
+        如需完全重置，请创建新的 SimulatorEngine 实例。
+        """
+        self._has_run = False
+        self.records.clear()
+        self.event_queue = EventQueue()
 
     def ensure_user(self, user_id: str) -> User:
         """取得用户；如果事件引用了新用户，则创建空钱包用户。"""
@@ -41,7 +50,18 @@ class SimulatorEngine:
         self.event_queue.push(event)
 
     def run(self, events: list[Event] | None = None) -> SimulationResult:
-        """运行仿真直到事件队列为空，并返回最终结果。"""
+        """运行仿真直到事件队列为空，并返回最终结果。
+
+        每个引擎实例只能调用一次 run()；如需再次运行，请创建新实例或调用
+        reset() 清空内部状态后重新调度事件。
+        """
+        if self._has_run:
+            raise RuntimeError(
+                "SimulatorEngine.run() has already been called on this instance. "
+                "Create a new SimulatorEngine or call reset() to clear state for another run."
+            )
+        self._has_run = True
+
         if events:
             self.event_queue.extend(events)
 
@@ -288,6 +308,3 @@ class SimulatorEngine:
             invariant_after=invariant_after,
         )
 
-    def export_csv(self, path: str | Path) -> Path:
-        """导出当前已处理事件记录为 CSV。"""
-        return export_event_records(self.records, path)

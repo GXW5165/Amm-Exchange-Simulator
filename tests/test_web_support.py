@@ -26,9 +26,11 @@ def test_build_config_from_runtime_input_uses_web_run_paths() -> None:
         initial_reserve_x=1000.0,
         initial_reserve_y=1000.0,
         fee_rate=0.003,
+        initial_lp_owner="treasury",
         users=normalize_user_rows([{"user_id": "alice", "balance_x": 10.0, "balance_y": 10.0, "lp_shares": 0.0}]),
         events=normalize_event_rows([{"timestamp": 1, "event_type": "swap", "user_id": "alice", "direction": "x_to_y", "amount_in": 1.0}]),
     )
 
     assert "data/output/web_runs" in config.log_path
     assert config.summary_path.endswith("summary.json")
+    assert config.initial_lp_owner == "treasury"

@@ -1,6 +1,6 @@
 from src.domain.pool import Pool
 from src.domain.user import User
-from src.simulator.engine import SimulatorEngine, build_events
+from src.simulator import SimulatorEngine, build_events
 from src.visualization.plotter import generate_result_plots
 
 

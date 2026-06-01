@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from math import sqrt
+from math import isfinite, sqrt
 
 
 def impermanent_loss_from_price_ratio(price_ratio: float) -> float:
@@ -16,6 +16,8 @@ def impermanent_loss_from_price_ratio(price_ratio: float) -> float:
 
 def impermanent_loss_pct(initial_price: float, current_price: float) -> float | None:
     """根据初始价格和当前价格输出百分比形式的无常损失。"""
+    if not isfinite(initial_price) or not isfinite(current_price):
+        return None
     if initial_price <= 0 or current_price <= 0:
         return None
     ratio = current_price / initial_price

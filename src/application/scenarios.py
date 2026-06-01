@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import replace
+from typing import TYPE_CHECKING
 
-from src.infrastructure.config_loader import AppConfig
+if TYPE_CHECKING:
+    from src.infrastructure.config_loader import AppConfig
 
 
 def build_basic_scenario(config: AppConfig) -> AppConfig:

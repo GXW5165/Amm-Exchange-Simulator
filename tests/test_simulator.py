@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src.infrastructure.config_loader import load_config
-from src.simulator.engine import SimulatorEngine, build_events
+from src.simulator import SimulatorEngine, build_events
 from src.domain.pool import Pool
 
 

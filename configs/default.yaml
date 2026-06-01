@@ -1,7 +1,7 @@
 initial_reserve_x: 1000.0
 initial_reserve_y: 1000.0
 fee_rate: 0.003
-seed: 42
+initial_lp_owner: protocol
 log_path: data/output/logs/simulation.csv
 summary_path: data/output/results/summary.json
 plot_dir: data/output/results

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
+from math import isfinite
 
 from src.domain.pool import Pool
 from src.domain.user import User
@@ -52,21 +53,30 @@ def summarize_user_pnl(
     price_y_per_x: float,
     initial_price_y_per_x: float | None = None,
     total_fees_in_y: float = 0.0,
+    initial_pool: Pool | None = None,
 ) -> dict[str, UserPnL]:
     """按用户生成收益表。
 
     initial_users 和 current_users 允许用户集合不完全一致，这样后续扩展动态创建
-    用户时也能正常统计；当前项目主要用于比较交易者和 LP 在仿真后的价值变化。
+    用户时也能正常统计；初始用户如果持有 LP 份额，其初始 LP 仓位也会纳入
+    持有基准，避免把初始做市资金误算为后续收益。
     """
     summary: dict[str, UserPnL] = {}
-    initial_price = price_y_per_x if initial_price_y_per_x is None else initial_price_y_per_x
+    raw_initial_price = price_y_per_x if initial_price_y_per_x is None else initial_price_y_per_x
+    initial_price = raw_initial_price if isfinite(raw_initial_price) and raw_initial_price > 0 else price_y_per_x
+    initial_pool_for_lp = initial_pool or pool
     user_ids = set(initial_users) | set(current_users)
     for user_id in sorted(user_ids):
         initial_user = deepcopy(initial_users.get(user_id, User(user_id=user_id)))
         current_user = deepcopy(current_users.get(user_id, User(user_id=user_id)))
-        initial_value = portfolio_value_in_y(initial_user, price_y_per_x)
-        initial_value_at_initial_price = portfolio_value_in_y(initial_user, initial_price)
-        hold_value_at_final_price = portfolio_value_in_y(initial_user, price_y_per_x)
+        initial_wallet_at_final_price = portfolio_value_in_y(initial_user, price_y_per_x)
+        initial_lp_at_final_price = lp_position_value_in_y(initial_pool_for_lp, initial_user, price_y_per_x)
+        initial_value = initial_wallet_at_final_price + initial_lp_at_final_price
+        initial_value_at_initial_price = (
+            portfolio_value_in_y(initial_user, initial_price)
+            + lp_position_value_in_y(initial_pool_for_lp, initial_user, initial_price)
+        )
+        hold_value_at_final_price = initial_value
         final_wallet_value = portfolio_value_in_y(current_user, price_y_per_x)
         lp_value = lp_position_value_in_y(pool, current_user, price_y_per_x)
         final_total_value = final_wallet_value + lp_value
@@ -78,7 +88,7 @@ def summarize_user_pnl(
             initial_value_in_y=initial_value,
             final_wallet_value_in_y=final_wallet_value,
             final_total_value_in_y=final_total_value,
-            wallet_pnl_in_y=final_wallet_value - initial_value,
+            wallet_pnl_in_y=final_wallet_value - initial_wallet_at_final_price,
             total_pnl_in_y=final_total_value - initial_value,
             lp_position_value_in_y=lp_value,
             initial_value_at_initial_price_in_y=initial_value_at_initial_price,
