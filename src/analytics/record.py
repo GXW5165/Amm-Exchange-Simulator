@@ -4,6 +4,12 @@ from typing import Any, Optional
 
 @dataclass
 class EventRecord:
+    """事件执行后的完整快照。
+
+    该结构既服务 CSV 导出，也服务图表和摘要统计。字段分为事件信息、交易信息、
+    池状态、用户钱包状态、LP 份额状态和一致性指标，方便报告中复盘每一步。
+    """
+
     event_id: int
     timestamp: float
     user_id: str
@@ -38,6 +44,7 @@ class EventRecord:
     invariant_after: Optional[float] = None
 
     def to_csv_row(self) -> dict[str, Any]:
+        """转换成稳定字段顺序的字典，供 CSV、Web 表格和测试复用。"""
         return {
             "event_id": self.event_id,
             "timestamp": self.timestamp,

@@ -13,6 +13,12 @@ from .slippage import average_slippage_pct
 
 @dataclass
 class SimulationSummary:
+    """仿真摘要指标。
+
+    该对象聚合事件数量、手续费、滑点、无常损失、资金池价值和用户收益，
+    是 CLI 输出、JSON 导出和 Web 摘要面板的统一数据来源。
+    """
+
     total_events: int
     swap_events: int
     liquidity_events: int
@@ -34,6 +40,7 @@ def summarize_records(
     initial_users: dict[str, User],
     current_users: dict[str, User],
 ) -> SimulationSummary:
+    """根据事件记录和初末状态计算汇总指标。"""
     swap_events = 0
     liquidity_events = 0
     total_fees = 0.0

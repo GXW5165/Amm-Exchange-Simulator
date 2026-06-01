@@ -83,8 +83,28 @@ D:\miniconda3\envs\jrrg\python.exe -m pip install -r requirements.txt
 
 ## 运行 CLI
 
+交互式菜单：
+
 ```powershell
 D:\miniconda3\envs\jrrg\python.exe main.py
+```
+
+非交互式一键 Demo：
+
+```powershell
+D:\miniconda3\envs\jrrg\python.exe main.py --config configs/default.yaml
+```
+
+等价的默认 Demo 快捷参数：
+
+```powershell
+D:\miniconda3\envs\jrrg\python.exe main.py --demo
+```
+
+如果需要同时运行内置对比实验场景：
+
+```powershell
+D:\miniconda3\envs\jrrg\python.exe main.py --config configs/default.yaml --scenarios
 ```
 
 CLI 支持：

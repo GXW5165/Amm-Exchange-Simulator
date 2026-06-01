@@ -21,6 +21,7 @@ class SimulatorEngine:
     """仿真控制模块：按时间顺序调度事件，并协调业务模块与指标模块。"""
 
     def __init__(self, pool: Pool | None = None, users: dict[str, User] | None = None) -> None:
+        """初始化仿真引擎，并保存初始状态快照。"""
         self.pool = pool
         self.users = users or {}
         self.event_queue = EventQueue()
@@ -30,14 +31,17 @@ class SimulatorEngine:
         self.metrics = MetricsCalculator()
 
     def ensure_user(self, user_id: str) -> User:
+        """取得用户；如果事件引用了新用户，则创建空钱包用户。"""
         if user_id not in self.users:
             self.users[user_id] = User(user_id=user_id)
         return self.users[user_id]
 
     def schedule(self, event: Event) -> None:
+        """向内部事件队列添加一个事件。"""
         self.event_queue.push(event)
 
     def run(self, events: list[Event] | None = None) -> SimulationResult:
+        """运行仿真直到事件队列为空，并返回最终结果。"""
         if events:
             self.event_queue.extend(events)
 
@@ -62,6 +66,7 @@ class SimulatorEngine:
         )
 
     def process_event(self, event: Event) -> EventRecord:
+        """根据事件类型分发到对应处理流程。"""
         if self.pool is None:
             raise PoolNotInitializedError("Pool is not initialized")
 
@@ -75,6 +80,7 @@ class SimulatorEngine:
         raise InvalidEventError(f"Unsupported event type: {event.event_type}")
 
     def _process_swap(self, event: Event, user: User) -> EventRecord:
+        """处理兑换事件：校验用户余额、调用 AMMEngine，并更新钱包。"""
         direction = str(event.payload.get("direction", ""))
         amount_in = float(event.payload.get("amount_in", 0.0))
         amm = AMMEngine(self.pool)
@@ -133,6 +139,7 @@ class SimulatorEngine:
         )
 
     def _process_add_liquidity(self, event: Event, user: User) -> EventRecord:
+        """处理添加流动性事件：按池内比例消耗用户资产并增加 LP 份额。"""
         amount_x = float(event.payload.get("amount_x", 0.0))
         amount_y = float(event.payload.get("amount_y", 0.0))
         if user.balance_x < amount_x or user.balance_y < amount_y:
@@ -175,6 +182,7 @@ class SimulatorEngine:
         )
 
     def _process_remove_liquidity(self, event: Event, user: User) -> EventRecord:
+        """处理移除流动性事件：销毁用户 LP 份额并赎回双边资产。"""
         lp_share = float(event.payload.get("lp_share", 0.0))
         if user.lp_shares < lp_share:
             raise InsufficientLiquidityError("User does not own enough LP shares")
@@ -244,6 +252,7 @@ class SimulatorEngine:
         invariant_before: float | None = None,
         invariant_after: float | None = None,
     ) -> EventRecord:
+        """统一构造事件记录，确保各种事件拥有一致的日志字段。"""
         return EventRecord(
             event_id=event.event_id,
             timestamp=event.timestamp,
@@ -280,4 +289,5 @@ class SimulatorEngine:
         )
 
     def export_csv(self, path: str | Path) -> Path:
+        """导出当前已处理事件记录为 CSV。"""
         return export_event_records(self.records, path)

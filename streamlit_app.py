@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+"""Streamlit Web 入口。
+
+页面提供两个工作流：默认配置一键运行，以及自定义池参数、用户和事件序列后
+运行仿真。核心计算仍由 application/simulator/amm 层完成，Web 层只负责输入、
+展示和下载。
+"""
+
 from pathlib import Path
 
 import pandas as pd
@@ -23,10 +30,12 @@ DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "default.yaml"
 
 
 def _read_bytes(path: Path) -> bytes:
+    """读取导出文件字节，用于 Streamlit 下载按钮。"""
     return path.read_bytes()
 
 
 def _show_result(artifacts, *, section_key: str) -> None:
+    """展示一次仿真的摘要、事件表、PnL、下载按钮和图表。"""
     summary = artifacts.result.summary
     st.subheader("Summary")
     metric_columns = st.columns(4)
@@ -89,6 +98,7 @@ def _show_result(artifacts, *, section_key: str) -> None:
 
 
 def _run_default_config() -> None:
+    """默认配置运行页签。"""
     st.subheader("Default Config Simulation")
     if st.button("Run Default Config", width="stretch"):
         config = load_config(DEFAULT_CONFIG_PATH)
@@ -101,6 +111,7 @@ def _run_default_config() -> None:
 
 
 def _run_custom_simulation() -> None:
+    """自定义参数运行页签。"""
     st.subheader("Custom Simulation")
     default_config = load_config(DEFAULT_CONFIG_PATH)
 
@@ -190,6 +201,7 @@ def _run_custom_simulation() -> None:
 
 
 def main() -> None:
+    """Streamlit 应用入口。"""
     st.set_page_config(
         page_title="AMM Exchange Simulator",
         page_icon="📈",

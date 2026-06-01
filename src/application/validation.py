@@ -8,21 +8,31 @@ from src.domain.user import User
 
 @dataclass
 class ValidationResult:
+    """输入校验结果。
+
+    errors 为空表示校验通过；调用方可以用 ok 判断，也可以直接调用
+    raise_for_errors 把错误聚合成 ValueError。
+    """
+
     errors: list[str] = field(default_factory=list)
 
     @property
     def ok(self) -> bool:
+        """是否没有校验错误。"""
         return not self.errors
 
     def add(self, message: str) -> None:
+        """追加一条校验错误。"""
         self.errors.append(message)
 
     def raise_for_errors(self) -> None:
+        """如果存在错误，抛出包含全部错误信息的 ValueError。"""
         if self.errors:
             raise ValueError("; ".join(self.errors))
 
 
 def validate_pool_params(initial_reserve_x: float, initial_reserve_y: float, fee_rate: float) -> ValidationResult:
+    """校验资金池初始储备和手续费率。"""
     result = ValidationResult()
     if initial_reserve_x < 0:
         result.add("initial_reserve_x must be non-negative")
@@ -34,6 +44,7 @@ def validate_pool_params(initial_reserve_x: float, initial_reserve_y: float, fee
 
 
 def validate_users(users: dict[str, User]) -> ValidationResult:
+    """校验用户集合和用户初始资产。"""
     result = ValidationResult()
     if not users:
         result.add("at least one user is required")
@@ -46,6 +57,10 @@ def validate_users(users: dict[str, User]) -> ValidationResult:
 
 
 def validate_events(events: list[dict[str, Any]], users: dict[str, User] | None = None) -> ValidationResult:
+    """校验事件序列。
+
+    如果传入 users，会额外检查事件中的 user_id 是否已经在用户配置中声明。
+    """
     result = ValidationResult()
     if not events:
         result.add("at least one event is required")
@@ -104,6 +119,7 @@ def validate_simulation_input(
 
 
 def _require_positive_number(result: ValidationResult, event: dict[str, Any], key: str, prefix: str) -> None:
+    """校验某个事件字段存在且为正数。"""
     try:
         value = float(event.get(key, 0.0))
     except (TypeError, ValueError):

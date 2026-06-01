@@ -9,6 +9,12 @@ from src.domain.user import User
 
 @dataclass
 class UserPnL:
+    """用户收益摘要。
+
+    所有价值统一折算为 Token Y 计价，既包含钱包余额，也包含用户当前 LP
+    份额对应的池内资产价值，便于横向比较不同用户的总收益。
+    """
+
     user_id: str
     initial_value_in_y: float
     final_wallet_value_in_y: float
@@ -23,11 +29,13 @@ class UserPnL:
 
 
 def portfolio_value_in_y(user: User, price_y_per_x: float) -> float:
+    """计算用户钱包资产的 Token Y 计价价值。"""
     # 统一用 Token Y 计价，便于把钱包资产、LP 仓位和手续费收益放在同一张表里比较。
     return user.balance_x * price_y_per_x + user.balance_y
 
 
 def lp_position_value_in_y(pool: Pool, user: User, price_y_per_x: float) -> float:
+    """计算用户 LP 仓位在当前池子和价格下的 Token Y 计价价值。"""
     if pool.total_lp_shares <= 0 or user.lp_shares <= 0:
         return 0.0
     # LP 份额不是单独资产余额，而是对当前池子 reserve_x/reserve_y 的比例索取权。
@@ -45,6 +53,11 @@ def summarize_user_pnl(
     initial_price_y_per_x: float | None = None,
     total_fees_in_y: float = 0.0,
 ) -> dict[str, UserPnL]:
+    """按用户生成收益表。
+
+    initial_users 和 current_users 允许用户集合不完全一致，这样后续扩展动态创建
+    用户时也能正常统计；当前项目主要用于比较交易者和 LP 在仿真后的价值变化。
+    """
     summary: dict[str, UserPnL] = {}
     initial_price = price_y_per_x if initial_price_y_per_x is None else initial_price_y_per_x
     user_ids = set(initial_users) | set(current_users)

@@ -13,6 +13,7 @@ from src.simulator.result import SimulationResult
 
 
 def _save_figure(path: Path) -> Path:
+    """统一保存 Matplotlib 图表并释放当前画布。"""
     path.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
     plt.savefig(path, dpi=160, bbox_inches="tight")
@@ -21,6 +22,7 @@ def _save_figure(path: Path) -> Path:
 
 
 def plot_pool_price(records, output_dir: str | Path) -> Path | None:
+    """绘制资金池现货价格随事件时间变化的折线图。"""
     if not records:
         return None
 
@@ -37,6 +39,7 @@ def plot_pool_price(records, output_dir: str | Path) -> Path | None:
 
 
 def plot_slippage(records, output_dir: str | Path) -> Path | None:
+    """绘制所有 swap 事件的滑点变化图。"""
     swap_records = [record for record in records if record.slippage_pct is not None]
     if not swap_records:
         return None
@@ -54,6 +57,7 @@ def plot_slippage(records, output_dir: str | Path) -> Path | None:
 
 
 def plot_pool_reserves(records, output_dir: str | Path) -> Path | None:
+    """绘制 Token X 和 Token Y 储备变化图。"""
     if not records:
         return None
 
@@ -73,6 +77,7 @@ def plot_pool_reserves(records, output_dir: str | Path) -> Path | None:
 
 
 def plot_cumulative_fees(records, output_dir: str | Path) -> Path | None:
+    """绘制累计手续费图，统一折算为 Token Y 计价。"""
     swap_records = [record for record in records if record.event_type == "swap"]
     if not swap_records:
         return None
@@ -99,6 +104,7 @@ def plot_cumulative_fees(records, output_dir: str | Path) -> Path | None:
 
 
 def plot_impermanent_loss(result: SimulationResult, output_dir: str | Path) -> Path | None:
+    """绘制无常损失百分比随事件推进的变化。"""
     if not result.records:
         return None
 
@@ -129,6 +135,7 @@ def plot_impermanent_loss(result: SimulationResult, output_dir: str | Path) -> P
 
 
 def plot_user_pnl(result: SimulationResult, output_dir: str | Path) -> Path | None:
+    """绘制各用户最终总 PnL 柱状图。"""
     pnl_summary = result.summary.user_pnl
     if not pnl_summary:
         return None
@@ -148,6 +155,7 @@ def plot_user_pnl(result: SimulationResult, output_dir: str | Path) -> Path | No
 
 
 def generate_result_plots(result: SimulationResult, output_dir: str | Path) -> dict[str, Path]:
+    """生成全部标准结果图，并过滤掉没有数据的图表。"""
     plots = {
         "pool_spot_price": plot_pool_price(result.records, output_dir),
         "pool_reserves": plot_pool_reserves(result.records, output_dir),

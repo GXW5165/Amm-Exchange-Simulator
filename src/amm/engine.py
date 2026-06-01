@@ -50,9 +50,16 @@ class AMMEngine:
     """AMM 核心模块：封装恒定乘积模型下的报价与兑换逻辑。"""
 
     def __init__(self, pool: Pool) -> None:
+        """绑定一个资金池实例，后续 quote 只读池状态，swap 会修改池状态。"""
         self.pool = pool
 
     def quote(self, direction: str, amount_in: float) -> SwapQuote:
+        """计算兑换报价但不修改资金池。
+
+        direction 为 x_to_y 时，输入 Token X、输出 Token Y；反向同理。
+        报价使用扣除手续费后的 effective_in 代入 x*y=k 公式，但返回的
+        reserve_*_after 按真实池状态计算，即用户输入总额进入池子。
+        """
         if amount_in <= 0:
             raise InsufficientBalanceError("Swap amount must be positive")
         if self.pool.reserve_x <= 0 or self.pool.reserve_y <= 0:
@@ -108,6 +115,7 @@ class AMMEngine:
         )
 
     def swap(self, direction: str, amount_in: float) -> SwapResult:
+        """执行兑换并更新资金池储备。"""
         quote = self.quote(direction, amount_in)
 
         # 注意：池子实际增加的是用户输入总额 amount_in，手续费仍留在池中。

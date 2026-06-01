@@ -31,9 +31,15 @@ class LiquidityManager:
     """流动性管理模块：负责 LP 份额铸造、销毁和池状态更新。"""
 
     def __init__(self, pool: Pool) -> None:
+        """绑定一个资金池实例，添加/移除流动性会直接修改该池状态。"""
         self.pool = pool
 
     def add_liquidity(self, amount_x: float, amount_y: float) -> LiquidityAddResult:
+        """添加双边流动性。
+
+        首次建池按 sqrt(x*y) 铸造 LP 份额；已有池子则按当前储备比例消耗资产，
+        避免新 LP 通过非比例注入直接改变池内价格。
+        """
         if amount_x <= 0 or amount_y <= 0:
             raise InsufficientBalanceError("Liquidity amounts must be positive")
 
@@ -61,6 +67,7 @@ class LiquidityManager:
         return LiquidityAddResult(consumed_x, consumed_y, minted_shares, self.pool.total_lp_shares)
 
     def remove_liquidity(self, lp_share: float) -> LiquidityRemoveResult:
+        """按 LP 份额比例赎回两侧资产并销毁份额。"""
         if lp_share <= 0:
             raise InsufficientLiquidityError("LP share must be positive")
         if self.pool.total_lp_shares <= 0 or lp_share > self.pool.total_lp_shares:

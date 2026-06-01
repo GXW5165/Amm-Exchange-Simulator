@@ -11,6 +11,7 @@ from src.infrastructure.config_loader import AppConfig
 
 
 def build_default_user_rows(users: dict[str, User]) -> list[dict[str, Any]]:
+    """把用户字典转换成 Streamlit data_editor 可直接展示的行数据。"""
     if not users:
         return [{"user_id": "alice", "balance_x": 500.0, "balance_y": 500.0, "lp_shares": 0.0}]
     return [
@@ -25,6 +26,7 @@ def build_default_user_rows(users: dict[str, User]) -> list[dict[str, Any]]:
 
 
 def build_default_event_rows(events: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """把配置事件转换成 Web 表格行，补齐不同事件类型使用的列。"""
     if not events:
         return [
             {
@@ -57,6 +59,7 @@ def build_default_event_rows(events: list[dict[str, Any]]) -> list[dict[str, Any
 
 
 def normalize_user_rows(rows: list[dict[str, Any]]) -> dict[str, User]:
+    """把 Web 表格中的用户行清洗为 User 字典。"""
     users: dict[str, User] = {}
     for row in rows:
         user_id = str(row.get("user_id", "")).strip()
@@ -72,6 +75,7 @@ def normalize_user_rows(rows: list[dict[str, Any]]) -> dict[str, User]:
 
 
 def normalize_event_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """把 Web 表格中的事件行清洗为配置事件，并按时间排序。"""
     normalized: list[dict[str, Any]] = []
     for row in rows:
         event_type = str(row.get("event_type", "")).strip()
@@ -111,6 +115,11 @@ def build_config_from_runtime_input(
     events: list[dict[str, Any]],
     output_root: str = "data/output/web_runs",
 ) -> AppConfig:
+    """根据 Web 页面输入构造 AppConfig。
+
+    每次自定义运行都会生成一个短 run_id，把 CSV、JSON 和图表输出到独立目录，
+    避免多次点击运行时互相覆盖。
+    """
     validate_runtime_input(
         initial_reserve_x=initial_reserve_x,
         initial_reserve_y=initial_reserve_y,
@@ -133,6 +142,7 @@ def build_config_from_runtime_input(
 
 
 def user_pnl_rows(summary_user_pnl: dict[str, Any]) -> list[dict[str, Any]]:
+    """把 UserPnL 字典转换为 Web 表格行。"""
     return [asdict(item) for item in summary_user_pnl.values()]
 
 
@@ -144,6 +154,7 @@ def validate_runtime_input(
     users: dict[str, User],
     events: list[dict[str, Any]],
 ) -> ValidationResult:
+    """Web 层复用应用层统一校验，保持错误口径一致。"""
     return validate_simulation_input(
         initial_reserve_x=initial_reserve_x,
         initial_reserve_y=initial_reserve_y,
