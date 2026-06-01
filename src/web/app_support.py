@@ -146,6 +146,102 @@ def user_pnl_rows(summary_user_pnl: dict[str, Any]) -> list[dict[str, Any]]:
     return [asdict(item) for item in summary_user_pnl.values()]
 
 
+def cleanup_old_web_runs(output_root: str = "data/output/web_runs", keep: int = 5) -> int:
+    """清理旧的 Web 运行目录，只保留最近 `keep` 次结果。
+
+    返回删除的目录数量，便于 UI 层向用户提示。
+    """
+    import shutil
+
+    base = Path(output_root)
+    if not base.exists():
+        return 0
+
+    dirs = sorted(
+        [entry for entry in base.iterdir() if entry.is_dir()],
+        key=lambda p: p.stat().st_mtime,
+        reverse=True,
+    )
+    removed = 0
+    for stale in dirs[keep:]:
+        shutil.rmtree(stale, ignore_errors=True)
+        removed += 1
+    return removed
+
+
+def save_config_to_yaml(
+    *,
+    name: str,
+    initial_reserve_x: float,
+    initial_reserve_y: float,
+    fee_rate: float,
+    users: dict[str, User],
+    events: list[dict[str, Any]],
+    output_dir: str = "data/saved_configs",
+) -> Path:
+    """将当前自定义参数保存为 YAML 配置文件，供后续加载复用。"""
+    import yaml
+
+    base = Path(output_dir)
+    base.mkdir(parents=True, exist_ok=True)
+    safe_name = "".join(c for c in name if c.isalnum() or c in "._-") or "saved"
+    path = base / f"{safe_name}.yaml"
+
+    data: dict[str, Any] = {
+        "initial_reserve_x": initial_reserve_x,
+        "initial_reserve_y": initial_reserve_y,
+        "fee_rate": fee_rate,
+        "users": {
+            uid: {
+                "balance_x": u.balance_x,
+                "balance_y": u.balance_y,
+                "lp_shares": u.lp_shares,
+            }
+            for uid, u in users.items()
+        },
+        "events": events,
+    }
+    path.write_text(yaml.dump(data, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    return path
+
+
+def list_saved_configs(output_dir: str = "data/saved_configs") -> list[str]:
+    """列出所有已保存的配置名称（不含扩展名）。"""
+    base = Path(output_dir)
+    if not base.exists():
+        return []
+    return sorted(
+        [p.stem for p in base.glob("*.yaml")],
+        key=lambda n: (base / f"{n}.yaml").stat().st_mtime,
+        reverse=True,
+    )
+
+
+def load_saved_config(
+    name: str,
+    output_dir: str = "data/saved_configs",
+) -> dict[str, Any] | None:
+    """加载已保存的配置，返回原始字典；不存在时返回 None。"""
+    import yaml
+
+    path = Path(output_dir) / f"{name}.yaml"
+    if not path.exists():
+        return None
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def delete_saved_config(
+    name: str,
+    output_dir: str = "data/saved_configs",
+) -> bool:
+    """删除已保存的配置；成功返回 True。"""
+    path = Path(output_dir) / f"{name}.yaml"
+    if path.exists():
+        path.unlink()
+        return True
+    return False
+
+
 def validate_runtime_input(
     *,
     initial_reserve_x: float,

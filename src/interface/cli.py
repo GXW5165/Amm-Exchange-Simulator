@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 from pathlib import Path
 
 from src.application.scenarios import build_fee_rate_scenarios, build_large_trade_shock_scenario, build_liquidity_depth_scenarios
@@ -11,6 +12,45 @@ from src.infrastructure.config_loader import load_config
 from src.infrastructure.logger import get_logger
 from src.simulator.engine import SimulatorEngine
 from src.simulator.scenario_builder import build_events
+
+# ── 终端 ANSI 样式 ────────────────────────────────────────────────────
+# 在 Windows 10+ 控制台中启用 VT100 虚拟终端序列
+os.system("")
+
+_RESET = "\033[0m"
+_BOLD = "\033[1m"
+_DIM = "\033[2m"
+
+_BLACK = "\033[30m"
+_RED = "\033[31m"
+_GREEN = "\033[32m"
+_YELLOW = "\033[33m"
+_BLUE = "\033[34m"
+_MAGENTA = "\033[35m"
+_CYAN = "\033[36m"
+_WHITE = "\033[37m"
+
+# 常用组合
+TITLE = f"{_BOLD}{_CYAN}"
+SUBTITLE = f"{_BOLD}{_WHITE}"
+HEADER = f"{_BOLD}{_MAGENTA}"
+SUCCESS = f"{_GREEN}"
+ERROR = f"{_RED}"
+WARN = f"{_YELLOW}"
+INFO = f"{_BLUE}"
+VALUE = f"{_BOLD}{_WHITE}"
+LABEL = f"{_DIM}{_WHITE}"
+SEP = f"{_DIM}{_MAGENTA}"
+
+SEP_LINE = f"{SEP}{'─' * 56}{_RESET}"
+SEP_DOUBLE = f"{SEP}{'═' * 56}{_RESET}"
+
+
+def _p(value: float | None, fmt: str = ".6f") -> str:
+    """安全格式化浮点数，None 时返回 N/A。"""
+    if value is None:
+        return "N/A"
+    return f"{value:{fmt}}"
 
 
 class AMMCLI:
@@ -44,13 +84,59 @@ class AMMCLI:
             self.users = {}
             self.engine = SimulatorEngine(self.pool, self.users)
 
+    # ── 工具方法 ──────────────────────────────────────────────────────
+
+    @staticmethod
+    def _press_any_key() -> None:
+        """等待用户按回车后继续，避免输出一闪而过。"""
+        input(f"\n{_DIM}Press Enter to return to menu...{_RESET}")
+
+    def _print_section(self, title: str) -> None:
+        """打印带装饰线的段落标题。"""
+        print(f"\n{SEP_LINE}")
+        print(f"  {HEADER}{title}{_RESET}")
+        print(f"{SEP_LINE}")
+
+    def _ok(self, message: str) -> None:
+        """打印成功消息。"""
+        print(f"\n  {SUCCESS}✓ {message}{_RESET}")
+
+    def _err(self, message: str) -> None:
+        """打印错误消息。"""
+        print(f"\n  {ERROR}✗ {message}{_RESET}")
+
+    # ── 菜单 ──────────────────────────────────────────────────────────
+
+    def _print_menu(self) -> None:
+        """打印带样式的主菜单。"""
+        print(f"\n{SEP_DOUBLE}")
+        print(f"{SEP_DOUBLE}")
+        print(f"  {TITLE} █  AMM Exchange Simulator{_RESET}")
+        print(f"  {LABEL}    恒定乘积做市商仿真系统 · 交互式控制台{_RESET}")
+        print(f"{SEP_DOUBLE}")
+        print(f"{SEP_DOUBLE}")
+        print(f"  {SUBTITLE}Simulation{_RESET}")
+        print(f"    {_BOLD}1.{_RESET}  Run default simulation")
+        print(f"    {_BOLD}8.{_RESET}  Run experiment scenarios")
+        print(f"  {SUBTITLE}Manual Operations{_RESET}")
+        print(f"    {_BOLD}2.{_RESET}  Initialize pool")
+        print(f"    {_BOLD}3.{_RESET}  Execute a swap")
+        print(f"    {_BOLD}4.{_RESET}  Add liquidity")
+        print(f"    {_BOLD}5.{_RESET}  Remove liquidity")
+        print(f"  {SUBTITLE}Inspect{_RESET}")
+        print(f"    {_BOLD}6.{_RESET}  View pool status")
+        print(f"    {_BOLD}7.{_RESET}  View user status")
+        print(f"  {SUBTITLE}System{_RESET}")
+        print(f"    {_BOLD}9.{_RESET}  Exit")
+        print(f"{SEP_DOUBLE}")
+
     def run(self) -> None:
         """进入菜单循环，直到用户选择退出。"""
         while True:
             self._print_menu()
-            choice = input("Select an option: ").strip()
+            choice = input(f"  {_BOLD}▸ Select an option:{_RESET} ").strip()
             if choice == "9":
-                print("Exit.")
+                print(f"\n  {_DIM}Goodbye.{_RESET}\n")
                 break
 
             actions = {
@@ -66,26 +152,17 @@ class AMMCLI:
 
             action = actions.get(choice)
             if action is None:
-                print("Invalid option.")
+                print(f"\n  {ERROR}Invalid option — please enter 1–9.{_RESET}")
+                self._press_any_key()
                 continue
 
             try:
                 action()
             except Exception as exc:
-                print(f"Operation failed: {exc}")
+                self._err(f"Operation failed: {exc}")
+            self._press_any_key()
 
-    def _print_menu(self) -> None:
-        """打印交互模式主菜单。"""
-        print("\nAMM Exchange Simulator")
-        print("1. Use default config to run simulation")
-        print("2. Manually initialize pool")
-        print("3. Execute a swap")
-        print("4. Add liquidity")
-        print("5. Remove liquidity")
-        print("6. View pool status")
-        print("7. View user status")
-        print("8. Run experiment scenarios")
-        print("9. Exit")
+    # ── 业务操作 ──────────────────────────────────────────────────────
 
     def _require_pool(self) -> Pool:
         """取得当前资金池；未初始化时抛出清晰错误。"""
@@ -96,7 +173,7 @@ class AMMCLI:
     def run_default_simulation(self) -> None:
         """按默认配置执行一次完整仿真并打印核心输出路径。"""
         if not self.config_path.exists():
-            print("Default config file not found.")
+            self._err("Default config file not found.")
             return
 
         config = load_config(self.config_path)
@@ -104,27 +181,41 @@ class AMMCLI:
         self.users = config.users
         self.engine = SimulatorEngine(self.pool, self.users)
         artifacts = self.runner.run_from_config(config)
-        result = artifacts.result
-        summary = result.summary
+        summary = artifacts.result.summary
 
-        print(f"Processed events: {summary.total_events}")
-        print(f"Swap events: {summary.swap_events}")
-        print(f"Liquidity events: {summary.liquidity_events}")
-        print(f"Total fees: {summary.total_fees:.6f}")
-        print(f"Average slippage (%): {summary.average_slippage_pct}")
-        print(f"Max slippage (%): {summary.max_slippage_pct}")
-        print(f"Impermanent loss (%): {summary.impermanent_loss_pct}")
-        print(f"Output CSV: {artifacts.csv_path}")
-        print(f"Output Summary: {artifacts.summary_path}")
+        self._print_section("Simulation Result")
+
+        # 事件与费用
+        print(f"  {LABEL}Events{_RESET}       {VALUE}{summary.total_events}{_RESET}  "
+              f"({INFO}swap{_RESET}: {summary.swap_events},  "
+              f"{INFO}liquidity{_RESET}: {summary.liquidity_events})")
+        print(f"  {LABEL}Total Fees{_RESET}   {VALUE}{summary.total_fees:.6f}{_RESET}  "
+              f"({LABEL}in Y{_RESET}: {VALUE}{summary.total_fees_in_y:.6f}{_RESET})")
+
+        # 滑点
+        print(f"  {LABEL}Slippage{_RESET}     "
+              f"avg {VALUE}{_p(summary.average_slippage_pct)}{_RESET}%  "
+              f"max {VALUE}{_p(summary.max_slippage_pct)}{_RESET}%")
+
+        # 无常损失
+        il_str = f"{summary.impermanent_loss_pct:.6f}%" if summary.impermanent_loss_pct is not None else "N/A"
+        print(f"  {LABEL}Imp. Loss{_RESET}   {VALUE}{il_str}{_RESET}")
+
+        # 输出文件
+        self._print_section("Output Files")
+        print(f"  {INFO}CSV{_RESET}      {artifacts.csv_path}")
+        print(f"  {INFO}JSON{_RESET}     {artifacts.summary_path}")
         for name, path in artifacts.plot_paths.items():
-            print(f"Plot {name}: {path}")
+            print(f"  {INFO}Plot{_RESET}     {name}  →  {path}")
         for warning in artifacts.warnings:
-            print(f"Warning: {warning}")
+            print(f"  {WARN}Warning{_RESET}  {warning}")
+
+        self._ok("Simulation completed successfully")
 
     def run_experiment_scenarios(self) -> None:
         """运行内置场景组，用于比较大额冲击、手续费率和流动性深度。"""
         if not self.config_path.exists():
-            print("Default config file not found.")
+            self._err("Default config file not found.")
             return
 
         config = load_config(self.config_path)
@@ -133,35 +224,44 @@ class AMMCLI:
             **build_fee_rate_scenarios(config),
             **build_liquidity_depth_scenarios(config),
         }
+
+        self._print_section("Experiment Scenarios")
+        print(f"  {_DIM}Running {len(scenarios)} scenario groups...{_RESET}\n")
+
         artifacts_by_name = self.runner.run_scenarios(scenarios)
         for name, artifacts in artifacts_by_name.items():
             summary = artifacts.result.summary
             print(
-                f"{name}: events={summary.total_events}, fees_y={summary.total_fees_in_y:.6f}, "
-                f"avg_slippage={summary.average_slippage_pct}, il={summary.impermanent_loss_pct}"
+                f"  {SUBTITLE}{name:<22}{_RESET}"
+                f"  slippage {VALUE}{_p(summary.average_slippage_pct):>10}{_RESET}%"
+                f"  IL {VALUE}{_p(summary.impermanent_loss_pct):>10}{_RESET}%"
+                f"  fees_y {VALUE}{summary.total_fees_in_y:.6f}{_RESET}"
             )
-            print(f"  summary: {artifacts.summary_path}")
+
+        self._ok("All scenarios completed")
 
     def manual_initialize_pool(self) -> None:
         """手动输入储备和手续费率，重建当前资金池。"""
-        reserve_x = self._prompt_float("Token X reserve: ")
-        reserve_y = self._prompt_float("Token Y reserve: ")
-        fee_rate = self._prompt_float("Fee rate (e.g. 0.003): ")
+        self._print_section("Initialize Pool")
+        reserve_x = self._prompt_float(f"  {LABEL}Token X reserve{_RESET}: ")
+        reserve_y = self._prompt_float(f"  {LABEL}Token Y reserve{_RESET}: ")
+        fee_rate = self._prompt_float(f"  {LABEL}Fee rate (e.g. 0.003){_RESET}: ")
         self.pool = Pool(reserve_x, reserve_y, fee_rate)
         self.engine = SimulatorEngine(self.pool, self.users)
-        print("Pool initialized.")
+        self._ok("Pool initialized")
 
     def execute_swap(self) -> None:
         """把用户输入转换为 swap 事件，并通过仿真引擎执行。"""
         try:
             pool = self._require_pool()
         except RuntimeError as exc:
-            print(str(exc))
+            self._err(str(exc))
             return
 
-        user_id = input("user_id: ").strip()
-        direction = input("direction(x_to_y / y_to_x): ").strip()
-        amount_in = self._prompt_float("amount_in: ")
+        self._print_section("Execute Swap")
+        user_id = input(f"  {LABEL}User ID{_RESET}: ").strip()
+        direction = input(f"  {LABEL}Direction (x_to_y / y_to_x){_RESET}: ").strip()
+        amount_in = self._prompt_float(f"  {LABEL}Amount In{_RESET}: ")
         event = {
             "timestamp": 0,
             "event_type": "swap",
@@ -171,21 +271,22 @@ class AMMCLI:
         }
         try:
             self.engine.process_event(build_events([event])[0])
-            print(f"Swap executed. Pool spot price: {pool.spot_price:.6f}")
+            self._ok(f"Swap executed. Spot price: {VALUE}{pool.spot_price:.6f}{_RESET} Y/X")
         except Exception as exc:
-            print(f"Execution failed: {exc}")
+            self._err(f"Execution failed: {exc}")
 
     def add_liquidity(self) -> None:
         """把用户输入转换为添加流动性事件，并执行状态变更。"""
         try:
             self._require_pool()
         except RuntimeError as exc:
-            print(str(exc))
+            self._err(str(exc))
             return
 
-        user_id = input("user_id: ").strip()
-        amount_x = self._prompt_float("amount_x: ")
-        amount_y = self._prompt_float("amount_y: ")
+        self._print_section("Add Liquidity")
+        user_id = input(f"  {LABEL}User ID{_RESET}: ").strip()
+        amount_x = self._prompt_float(f"  {LABEL}Amount X{_RESET}: ")
+        amount_y = self._prompt_float(f"  {LABEL}Amount Y{_RESET}: ")
         event = {
             "timestamp": 0,
             "event_type": "add_liquidity",
@@ -195,20 +296,21 @@ class AMMCLI:
         }
         try:
             self.engine.process_event(build_events([event])[0])
-            print("Liquidity added.")
+            self._ok("Liquidity added")
         except Exception as exc:
-            print(f"Execution failed: {exc}")
+            self._err(f"Execution failed: {exc}")
 
     def remove_liquidity(self) -> None:
         """把用户输入转换为移除流动性事件，并执行状态变更。"""
         try:
             self._require_pool()
         except RuntimeError as exc:
-            print(str(exc))
+            self._err(str(exc))
             return
 
-        user_id = input("user_id: ").strip()
-        lp_share = self._prompt_float("lp_share: ")
+        self._print_section("Remove Liquidity")
+        user_id = input(f"  {LABEL}User ID{_RESET}: ").strip()
+        lp_share = self._prompt_float(f"  {LABEL}LP Shares to Burn{_RESET}: ")
         event = {
             "timestamp": 0,
             "event_type": "remove_liquidity",
@@ -217,33 +319,41 @@ class AMMCLI:
         }
         try:
             self.engine.process_event(build_events([event])[0])
-            print("Liquidity removed.")
+            self._ok("Liquidity removed")
         except Exception as exc:
-            print(f"Execution failed: {exc}")
+            self._err(f"Execution failed: {exc}")
 
     def view_pool_status(self) -> None:
         """打印当前资金池储备、价格和 LP 总份额。"""
         try:
             pool = self._require_pool()
         except RuntimeError as exc:
-            print(str(exc))
+            self._err(str(exc))
             return
 
-        print(f"reserve_x: {pool.reserve_x:.6f}")
-        print(f"reserve_y: {pool.reserve_y:.6f}")
-        print(f"fee_rate: {pool.fee_rate:.6f}")
-        print(f"spot_price(y per x): {pool.spot_price:.6f}")
-        print(f"lp_total_shares: {pool.total_lp_shares:.6f}")
+        self._print_section("Pool Status")
+        print(f"  {LABEL}Reserve X{_RESET}      {VALUE}{pool.reserve_x:.6f}{_RESET}")
+        print(f"  {LABEL}Reserve Y{_RESET}      {VALUE}{pool.reserve_y:.6f}{_RESET}")
+        print(f"  {LABEL}Fee Rate{_RESET}       {VALUE}{pool.fee_rate:.6f}{_RESET}")
+        print(f"  {LABEL}Spot Price{_RESET}     {VALUE}{pool.spot_price:.6f}{_RESET}  {_DIM}(Y per X){_RESET}")
+        print(f"  {LABEL}LP Total Shares{_RESET} {VALUE}{pool.total_lp_shares:.6f}{_RESET}")
 
     def view_user_status(self) -> None:
         """打印所有已加载用户的钱包余额和 LP 份额。"""
         if not self.users:
-            print("No users loaded.")
+            self._err("No users loaded.")
             return
 
+        self._print_section("User Status")
+        header = f"  {HEADER}{'ID':<12}{'Balance X':>14}{'Balance Y':>14}{'LP Shares':>14}{_RESET}"
+        print(header)
+        print(f"  {SEP}{'─' * 54}{_RESET}")
         for user in self.users.values():
             print(
-                f"{user.user_id}: balance_x={user.balance_x:.6f}, balance_y={user.balance_y:.6f}, lp_shares={user.lp_shares:.6f}"
+                f"  {VALUE}{user.user_id:<12}{_RESET}"
+                f"{user.balance_x:>14.6f}"
+                f"{user.balance_y:>14.6f}"
+                f"{user.lp_shares:>14.6f}"
             )
 
     def _prompt_float(self, prompt: str) -> float:
@@ -252,7 +362,10 @@ class AMMCLI:
             try:
                 return float(input(prompt).strip())
             except ValueError:
-                print("Please enter a valid number.")
+                print(f"  {ERROR}Please enter a valid number.{_RESET}")
+
+
+# ── 非交互式入口 ──────────────────────────────────────────────────────
 
 
 def _resolve_config_path(path: str | Path, root_dir: Path) -> Path:

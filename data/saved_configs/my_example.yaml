@@ -1,0 +1,31 @@
+initial_reserve_x: 1000.0
+initial_reserve_y: 1000.0
+fee_rate: 0.003
+users:
+  alice:
+    balance_x: 500.0
+    balance_y: 500.0
+    lp_shares: 0.0
+  bob:
+    balance_x: 300.0
+    balance_y: 300.0
+    lp_shares: 0.0
+  judy:
+    balance_x: 200.0
+    balance_y: 200.0
+    lp_shares: 0.0
+events:
+- timestamp: 1.0
+  event_type: swap
+  user_id: alice
+  direction: x_to_y
+  amount_in: 10.0
+- timestamp: 2.0
+  event_type: add_liquidity
+  user_id: bob
+  amount_x: 20.0
+  amount_y: 20.0
+- timestamp: 3.0
+  event_type: remove_liquidity
+  user_id: bob
+  lp_share: 5.0

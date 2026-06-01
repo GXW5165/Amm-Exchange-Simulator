@@ -8,6 +8,11 @@ class EventRecord:
 
     该结构既服务 CSV 导出，也服务图表和摘要统计。字段分为事件信息、交易信息、
     池状态、用户钱包状态、LP 份额状态和一致性指标，方便报告中复盘每一步。
+
+    注意：invariant_before / invariant_after 记录的是 k = reserve_x * reserve_y。
+    在含手续费的恒定乘积模型中，k 会因手续费沉淀而增长，并非数学上的不变量。
+    这里保留 "invariant" 命名是为了字段可读性，其本质是"池储备乘积"，用于
+    审计每一步前后状态的一致性。
     """
 
     event_id: int
