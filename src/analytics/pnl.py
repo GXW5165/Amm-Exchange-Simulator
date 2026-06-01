@@ -27,6 +27,10 @@ class UserPnL:
     hold_value_at_final_price_in_y: float = 0.0
     lp_vs_hold_pnl_in_y: float = 0.0
     fee_gain_estimate_in_y: float = 0.0
+    # ── 拆分 PnL 明细（新增字段） ──
+    position_pnl_in_y: float = 0.0
+    fee_net_income_in_y: float = 0.0
+    il_loss_in_y: float = 0.0
 
 
 def portfolio_value_in_y(user: User, price_y_per_x: float) -> float:
@@ -54,6 +58,8 @@ def summarize_user_pnl(
     initial_price_y_per_x: float | None = None,
     total_fees_in_y: float = 0.0,
     initial_pool: Pool | None = None,
+    user_fee_income: dict[str, float] | None = None,
+    user_il_loss: dict[str, float | None] | None = None,
 ) -> dict[str, UserPnL]:
     """按用户生成收益表。
 
@@ -83,6 +89,13 @@ def summarize_user_pnl(
         # 手续费实际沉淀在池子储备里，这里按当前 LP 份额比例给出可解释的收益估算。
         lp_share_ratio = current_user.lp_shares / pool.total_lp_shares if pool.total_lp_shares > 0 else 0.0
         fee_gain_estimate = total_fees_in_y * lp_share_ratio
+        # ── 拆分 PnL 明细 ──
+        fee_income_val = (user_fee_income or {}).get(user_id, 0.0)
+        il_loss_val = (user_il_loss or {}).get(user_id, None)
+        # position_pnl = LP 仓位总盈亏 - 手续费收入 + 无常损失（加回来是因为 IL 已包含在 LP 仓位变动中）
+        total_lp_pnl = final_total_value - initial_value - (final_wallet_value - initial_wallet_at_final_price)
+        position_pnl = total_lp_pnl - fee_income_val + (il_loss_val if il_loss_val is not None else 0.0)
+
         summary[user_id] = UserPnL(
             user_id=user_id,
             initial_value_in_y=initial_value,
@@ -95,5 +108,8 @@ def summarize_user_pnl(
             hold_value_at_final_price_in_y=hold_value_at_final_price,
             lp_vs_hold_pnl_in_y=final_total_value - hold_value_at_final_price,
             fee_gain_estimate_in_y=fee_gain_estimate,
+            position_pnl_in_y=position_pnl,
+            fee_net_income_in_y=fee_income_val,
+            il_loss_in_y=il_loss_val if il_loss_val is not None else 0.0,
         )
     return summary

@@ -71,6 +71,25 @@ def _show_result(artifacts, *, section_key: str) -> None:
     )
     cols[3].metric("Fees in Y", f"{summary.total_fees_in_y:.6f}")
 
+    # ── 新增：LP 收益和池深度指标 ──
+    cols = st.columns(4)
+    # 找到有 LP 的用户中最好的年化收益率
+    lp_returns = summary.lp_annualized_returns or {}
+    best_lp = max(lp_returns.values(), key=lambda v: v if v is not None else float("-inf"), default=None)
+    cols[0].metric(
+        "Best LP APY (%)",
+        "N/A" if best_lp is None else f"{best_lp:.6f}",
+    )
+    cols[1].metric(
+        "Pool Depth @2%",
+        "N/A" if summary.pool_depth_at_2pct is None else f"{summary.pool_depth_at_2pct:.6f}",
+    )
+    cols[2].metric(
+        "IL Amount (Y)",
+        "N/A" if summary.impermanent_loss_amount_in_y is None else f"{summary.impermanent_loss_amount_in_y:.6f}",
+    )
+    cols[3].metric("Time Span (days)", f"{summary.time_span_days:.4f}")
+
     if artifacts.warnings:
         for warning in artifacts.warnings:
             st.warning(warning)
@@ -85,9 +104,35 @@ def _show_result(artifacts, *, section_key: str) -> None:
     pnl_df = pd.DataFrame(user_pnl_rows(summary.user_pnl))
     st.dataframe(pnl_df, use_container_width=True, hide_index=True)
 
+    # ── 新增：PnL 拆分明细（可展开） ──
+    with st.expander("📊 Detailed PnL Breakdown", expanded=False):
+        pnl_breakdown_rows = []
+        for uid, pnl in summary.user_pnl.items():
+            pnl_breakdown_rows.append({
+                "User": uid,
+                "Wallet PnL (Y)": f"{pnl.wallet_pnl_in_y:.6f}",
+                "LP Position PnL (Y)": f"{pnl.lp_position_value_in_y:.6f}",
+                "Fee Net Income (Y)": f"{pnl.fee_net_income_in_y:.6f}",
+                "IL Loss (Y)": f"{pnl.il_loss_in_y:.6f}",
+                "Total PnL (Y)": f"{pnl.total_pnl_in_y:.6f}",
+                "LP vs Hold (Y)": f"{pnl.lp_vs_hold_pnl_in_y:.6f}",
+            })
+        if pnl_breakdown_rows:
+            st.dataframe(
+                pd.DataFrame(pnl_breakdown_rows),
+                use_container_width=True,
+                hide_index=True,
+            )
+            st.caption(
+                "**LP Position PnL** = value change of LP shares from price movement alone.  "
+                "**Fee Net Income** = LP's pro-rata share of swap fees.  "
+                "**IL Loss** = impermanent loss in Token Y.  "
+                "**LP vs Hold** = PnL if LP'd vs HODLed since start."
+            )
+
     # ── 下载 ──
     st.subheader("Downloads")
-    dl_cols = st.columns(2)
+    dl_cols = st.columns(3)
     dl_cols[0].download_button(
         "📥 Download CSV Log",
         data=_read_bytes(artifacts.csv_path),
@@ -102,6 +147,20 @@ def _show_result(artifacts, *, section_key: str) -> None:
         mime="application/json",
         key=f"{section_key}_dl_json",
     )
+    # ── 新增：Excel 导出 ──
+    try:
+        from src.infrastructure.excel_exporter import export_to_excel
+        xlsx_path = artifacts.csv_path.with_suffix(".xlsx")
+        export_to_excel(artifacts, xlsx_path)
+        dl_cols[2].download_button(
+            "📥 Download Excel Report",
+            data=_read_bytes(xlsx_path),
+            file_name=xlsx_path.name,
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            key=f"{section_key}_dl_xlsx",
+        )
+    except Exception:
+        dl_cols[2].caption("Excel export unavailable")
 
     # ── 图表 2×3 网格 ──
     if artifacts.plot_paths:

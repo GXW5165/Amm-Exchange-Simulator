@@ -6,7 +6,9 @@ from src.domain.pool import Pool
 from src.domain.user import User
 
 from .impermanent_loss import impermanent_loss_amount_in_y, impermanent_loss_pct
+from .lp_metrics import compute_lp_metrics
 from .pnl import UserPnL, summarize_user_pnl
+from .pool_depth import compute_max_trade_at_2pct
 from .record import EventRecord
 from .slippage import average_slippage_pct
 
@@ -31,6 +33,10 @@ class SimulationSummary:
     final_pool_value_in_y: float
     initial_pool_value_at_final_price_in_y: float
     user_pnl: dict[str, UserPnL]
+    # ── 新增分析指标 ──
+    lp_annualized_returns: dict[str, float | None] | None = None
+    pool_depth_at_2pct: float | None = None
+    time_span_days: float = 0.0
 
 
 def summarize_records(
@@ -69,9 +75,36 @@ def summarize_records(
     current_price = current_pool.spot_price
     initial_price = initial_pool.spot_price
     il_pct = impermanent_loss_pct(initial_price, current_price)
-    # 用最终价格重估初始池子，得到“如果不做市而单纯持有”的基准价值。
+    # 用最终价格重估初始池子，得到”如果不做市而单纯持有”的基准价值。
     initial_pool_value_at_final_price = initial_pool.reserve_x * current_price + initial_pool.reserve_y
     final_pool_value = current_pool.reserve_x * current_price + current_pool.reserve_y
+
+    # ── 新增：仿真时间跨度 ──
+    if records:
+        timestamps = [r.timestamp for r in records]
+        time_span_days = ((max(timestamps) - min(timestamps)) / 24.0) if len(timestamps) >= 2 else 0.0
+    else:
+        time_span_days = 0.0
+
+    # ── 新增：池深度指标 ──
+    pool_depth = compute_max_trade_at_2pct(current_pool)
+
+    # ── 新增：LP 综合指标 ──
+    lp_metrics = compute_lp_metrics(
+        records=records,
+        initial_pool=initial_pool,
+        current_pool=current_pool,
+        initial_users=initial_users,
+        current_users=current_users,
+        price_y_per_x=current_price,
+        initial_price_y_per_x=initial_price,
+        total_fees_in_y=total_fees_in_y,
+    )
+    lp_annualized = {
+        uid: metrics.lp_annualized_return_pct for uid, metrics in lp_metrics.items()
+    }
+    user_fee_income = {uid: m.fee_income_in_y for uid, m in lp_metrics.items()}
+    user_il_loss = {uid: m.il_loss_amount_in_y for uid, m in lp_metrics.items()}
 
     return SimulationSummary(
         total_events=len(records),
@@ -85,6 +118,10 @@ def summarize_records(
         impermanent_loss_amount_in_y=impermanent_loss_amount_in_y(initial_pool_value_at_final_price, il_pct),
         final_pool_value_in_y=final_pool_value,
         initial_pool_value_at_final_price_in_y=initial_pool_value_at_final_price,
+        # ── 新增指标 ──
+        lp_annualized_returns=lp_annualized if any(v is not None for v in lp_annualized.values()) else None,
+        pool_depth_at_2pct=pool_depth,
+        time_span_days=time_span_days,
         user_pnl=summarize_user_pnl(
             initial_users=initial_users,
             current_users=current_users,
@@ -93,5 +130,7 @@ def summarize_records(
             initial_price_y_per_x=initial_price,
             total_fees_in_y=total_fees_in_y,
             initial_pool=initial_pool,
+            user_fee_income=user_fee_income,
+            user_il_loss=user_il_loss,
         ),
     )

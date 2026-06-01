@@ -15,17 +15,64 @@ users:
     balance_y: 300.0
     lp_shares: 0.0
 events:
+  # ── Alice 做市前先小额测试 swap，看池子深度 ──
   - timestamp: 1
     event_type: swap
     user_id: alice
     direction: x_to_y
     amount_in: 10.0
+
+  # ── Bob 添加流动性，获得 LP 份额 ──
   - timestamp: 2
     event_type: add_liquidity
     user_id: bob
     amount_x: 20.0
     amount_y: 20.0
+
+  # ── Alice 中等规模买入 Y（推动价格上升） ──
   - timestamp: 3
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 50.0
+
+  # ── Bob 反向卖出 Y 换 X，平抑价格 ──
+  - timestamp: 5
+    event_type: swap
+    user_id: bob
+    direction: y_to_x
+    amount_in: 20.0
+
+  # ── Bob 继续反向交易，价格进一步回调 ──
+  - timestamp: 8
+    event_type: swap
+    user_id: bob
+    direction: y_to_x
+    amount_in: 80.0
+
+  # ── Alice 大额买入 Y，产生显著滑点 ──
+  - timestamp: 10
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 100.0
+
+  # ── Bob 取出部分 LP 份额 ──
+  - timestamp: 15
     event_type: remove_liquidity
     user_id: bob
     lp_share: 5.0
+
+  # ── Alice 用小额反方向交易测试新价格 ──
+  - timestamp: 20
+    event_type: swap
+    user_id: alice
+    direction: y_to_x
+    amount_in: 30.0
+
+  # ── Bob 小额跟进买入 X，市场继续变化 ──
+  - timestamp: 30
+    event_type: swap
+    user_id: bob
+    direction: x_to_y
+    amount_in: 10.0

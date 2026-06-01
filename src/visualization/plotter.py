@@ -7,6 +7,7 @@ import matplotlib
 matplotlib.use("Agg")
 
 import matplotlib.pyplot as plt
+import numpy as np
 
 from src.analytics.impermanent_loss import impermanent_loss_pct
 from src.simulator.result import SimulationResult
@@ -154,6 +155,232 @@ def plot_user_pnl(result: SimulationResult, output_dir: str | Path) -> Path | No
     return _save_figure(Path(output_dir) / "user_total_pnl.png")
 
 
+# ── 新增图表：K 线（蜡烛图） ────────────────────────────────────────────
+
+
+def _build_ohlc_buckets(records, num_buckets: int = 30) -> list[dict] | None:
+    """从事件记录的现货价格中提取 OHLC 分桶数据。
+
+    只使用 swap 事件的 spot_price 构建蜡烛图。若 swap 事件不足 2 个则返回 None。
+    """
+    swap_prices = [
+        (r.timestamp, r.spot_price)
+        for r in records
+        if r.event_type == "swap" and r.spot_price is not None and r.spot_price > 0
+    ]
+    if len(swap_prices) < 2:
+        return None
+
+    t_min = swap_prices[0][0]
+    t_max = swap_prices[-1][0]
+    span = t_max - t_min
+    if span <= 0:
+        # 所有事件同一时间：做一个单独的桶
+        span = 1.0
+    bucket_width = span / min(num_buckets, len(swap_prices))
+
+    buckets: list[list[float]] = [[] for _ in range(min(num_buckets, len(swap_prices)))]
+    for t, price in swap_prices:
+        idx = min(int((t - t_min) / bucket_width), len(buckets) - 1)
+        buckets[idx].append(price)
+
+    # 只保留非空桶
+    ohlc: list[dict] = []
+    base_t = t_min
+    for i, bucket in enumerate(buckets):
+        if not bucket:
+            continue
+        ohlc.append(
+            {
+                "time": base_t + (i + 0.5) * bucket_width,
+                "open": bucket[0],
+                "high": max(bucket),
+                "low": min(bucket),
+                "close": bucket[-1],
+            }
+        )
+    return ohlc if ohlc else None
+
+
+def plot_candlestick(
+    result: SimulationResult,
+    output_dir: str | Path,
+    num_buckets: int = 30,
+) -> Path | None:
+    """绘制 K 线（OHLC 蜡烛图）价格走势。
+
+    将 swap 事件的现货价格按时间窗口聚合为 OHLC 数据，用 matplotlib 的
+    Rectangle 和 Line2D 手绘蜡烛实体和影线，不依赖 mplfinance。
+
+    Returns:
+        图表文件路径；swap 事件不足 2 个时返回 None。
+    """
+    ohlc = _build_ohlc_buckets(result.records, num_buckets)
+    if not ohlc:
+        return None
+
+    import matplotlib.patches as mpatches
+
+    fig, ax = plt.subplots(figsize=(10, 5))
+
+    for i, candle in enumerate(ohlc):
+        open_p = candle["open"]
+        close_p = candle["close"]
+        high_p = candle["high"]
+        low_p = candle["low"]
+
+        # 影线（从最低到最高）
+        ax.plot(
+            [i, i],
+            [low_p, high_p],
+            color="#334155",
+            linewidth=1,
+            solid_capstyle="round",
+        )
+
+        # 实体（从开盘到收盘）
+        body_bottom = min(open_p, close_p)
+        body_height = abs(close_p - open_p)
+        color = "#26a69a" if close_p >= open_p else "#ef5350"  # 绿涨红跌
+        rect = mpatches.Rectangle(
+            (i - 0.4, body_bottom),
+            0.8,
+            max(body_height, 0.001),
+            facecolor=color,
+            edgecolor=color,
+            linewidth=0.5,
+        )
+        ax.add_patch(rect)
+
+    # x 轴标签用时间戳
+    tick_indices = range(0, len(ohlc), max(1, len(ohlc) // 10))
+    ax.set_xticks(list(tick_indices))
+    ax.set_xticklabels(
+        [f"{ohlc[i]['time']:.1f}" for i in tick_indices], rotation=30, ha="right", fontsize=8
+    )
+    ax.set_title("Price Candlestick (K-Line)")
+    ax.set_xlabel("Timestamp")
+    ax.set_ylabel("Price (Y per X)")
+    ax.grid(alpha=0.25)
+
+    return _save_figure(Path(output_dir) / "candlestick.png")
+
+
+# ── 新增图表：滑点-交易量散点图 ──────────────────────────────────────────
+
+
+def plot_slippage_volume(
+    records: list,
+    output_dir: str | Path,
+) -> Path | None:
+    """绘制滑点与交易量关系的散点图。
+
+    x 轴为交易金额（amount_in），y 轴为滑点百分比。按交易方向着色，
+    便于观察大额交易与滑点之间的非线性关系。
+
+    Returns:
+        图表文件路径；无有效 swap 事件时返回 None。
+    """
+    swap_data = [
+        (r.amount_in, r.slippage_pct, r.direction)
+        for r in records
+        if r.event_type == "swap" and r.slippage_pct is not None and r.amount_in is not None
+    ]
+    if not swap_data:
+        return None
+
+    # 按方向分两组
+    x_to_y_data = [(amt, slip) for amt, slip, d in swap_data if d == "x_to_y"]
+    y_to_x_data = [(amt, slip) for amt, slip, d in swap_data if d == "y_to_x"]
+
+    fig, ax = plt.subplots(figsize=(8, 5))
+
+    if x_to_y_data:
+        xs, ys = zip(*x_to_y_data)
+        ax.scatter(xs, ys, c="#2563eb", alpha=0.7, edgecolors="white", linewidth=0.5, label="X → Y")
+
+    if y_to_x_data:
+        xs, ys = zip(*y_to_x_data)
+        ax.scatter(xs, ys, c="#dc2626", alpha=0.7, edgecolors="white", linewidth=0.5, marker="^", label="Y → X")
+
+    ax.set_xlabel("Trade Amount (amount_in)")
+    ax.set_ylabel("Slippage (%)")
+    ax.set_title("Slippage vs Trade Volume")
+    ax.legend()
+    ax.grid(alpha=0.25)
+
+    return _save_figure(Path(output_dir) / "slippage_volume.png")
+
+
+# ── 新增图表：多场景对比分组柱状图 ────────────────────────────────────────
+
+
+def plot_multi_scenario_comparison(
+    scenario_results: dict[str, SimulationResult],
+    output_dir: str | Path,
+) -> Path | None:
+    """绘制多场景关键指标对比的分组柱状图。
+
+    对每个场景提取 avg slippage、impermanent loss、total fees (in Y)、
+    final pool value 四个指标，以分组柱状图展示，便于横向比较不同参数配置。
+
+    Args:
+        scenario_results: 场景名称 → SimulationResult 的映射。
+        output_dir: 图表输出目录。
+
+    Returns:
+        图表文件路径；场景数不足 2 时返回 None。
+    """
+    if len(scenario_results) < 2:
+        return None
+
+    # 提取指标
+    metric_names = [
+        "Avg Slippage (%)",
+        "Imp. Loss (%)",
+        "Total Fees (Y)",
+        "Pool Value (Y)",
+    ]
+    scenarios = list(scenario_results.keys())
+    num_scenarios = len(scenarios)
+    num_metrics = len(metric_names)
+
+    # 收集数据矩阵
+    data: list[list[float]] = [[] for _ in range(num_metrics)]
+    for name in scenarios:
+        summary = scenario_results[name].summary
+        data[0].append(float(summary.average_slippage_pct or 0.0))
+        data[1].append(float(summary.impermanent_loss_pct or 0.0))
+        data[2].append(float(summary.total_fees_in_y))
+        data[3].append(float(summary.final_pool_value_in_y))
+
+    # 分组柱状图
+    x = np.arange(num_metrics)
+    width = 0.8 / num_scenarios
+    colors = plt.cm.Set2(np.linspace(0, 1, max(num_scenarios, 1)))
+
+    fig, ax = plt.subplots(figsize=(10, 5.5))
+    for i, name in enumerate(scenarios):
+        offset = (i - (num_scenarios - 1) / 2) * width
+        bars = ax.bar(
+            x + offset,
+            [data[j][i] for j in range(num_metrics)],
+            width,
+            label=name,
+            color=colors[i],
+            edgecolor="white",
+            linewidth=0.5,
+        )
+
+    ax.set_xticks(x)
+    ax.set_xticklabels(metric_names, fontsize=9)
+    ax.set_title("Multi-Scenario Comparison")
+    ax.legend(fontsize=8, loc="upper right")
+    ax.grid(axis="y", alpha=0.25)
+
+    return _save_figure(Path(output_dir) / "multi_scenario_comparison.png")
+
+
 def generate_result_plots(result: SimulationResult, output_dir: str | Path) -> dict[str, Path]:
     """生成全部标准结果图，并过滤掉没有数据的图表。"""
     plots = {
@@ -163,5 +390,8 @@ def generate_result_plots(result: SimulationResult, output_dir: str | Path) -> d
         "cumulative_fees": plot_cumulative_fees(result.records, output_dir),
         "impermanent_loss": plot_impermanent_loss(result, output_dir),
         "user_total_pnl": plot_user_pnl(result, output_dir),
+        # ── 新增图表 ──
+        "candlestick": plot_candlestick(result, output_dir),
+        "slippage_volume": plot_slippage_volume(result.records, output_dir),
     }
     return {name: path for name, path in plots.items() if path is not None}
