@@ -1,5 +1,7 @@
-from src.analytics.impermanent_loss import impermanent_loss_pct
+from src.analytics.impermanent_loss import impermanent_loss_amount_in_y, impermanent_loss_pct
+from src.analytics.lp_metrics import compute_fee_income_per_user
 from src.analytics.pnl import summarize_user_pnl
+from src.analytics.record import EventRecord
 from src.analytics.slippage import calculate_slippage_pct
 from src.domain.pool import Pool
 from src.domain.user import User
@@ -17,6 +19,72 @@ def test_impermanent_loss_pct_is_zero_when_price_unchanged() -> None:
 def test_impermanent_loss_pct_ignores_non_finite_prices() -> None:
     assert impermanent_loss_pct(float("inf"), 1.0) is None
     assert impermanent_loss_pct(1.0, float("inf")) is None
+
+
+def test_impermanent_loss_amount_is_positive_loss_value() -> None:
+    assert impermanent_loss_amount_in_y(2000.0, -1.0) == 20.0
+
+
+def test_fee_income_uses_lp_shares_at_each_event() -> None:
+    records = [
+        EventRecord(
+            event_id=1,
+            timestamp=1,
+            user_id="trader",
+            event_type="swap",
+            direction="y_to_x",
+            fee=1.0,
+            lp_total_shares=100.0,
+        ),
+        EventRecord(
+            event_id=2,
+            timestamp=2,
+            user_id="bob",
+            event_type="add_liquidity",
+            lp_total_shares=200.0,
+            lp_shares_after=100.0,
+        ),
+        EventRecord(
+            event_id=3,
+            timestamp=3,
+            user_id="trader",
+            event_type="swap",
+            direction="y_to_x",
+            fee=2.0,
+            lp_total_shares=200.0,
+        ),
+        EventRecord(
+            event_id=4,
+            timestamp=4,
+            user_id="protocol",
+            event_type="remove_liquidity",
+            lp_total_shares=100.0,
+            lp_shares_after=0.0,
+        ),
+        EventRecord(
+            event_id=5,
+            timestamp=5,
+            user_id="trader",
+            event_type="swap",
+            direction="y_to_x",
+            fee=3.0,
+            lp_total_shares=100.0,
+        ),
+    ]
+
+    fee_income = compute_fee_income_per_user(
+        records=records,
+        initial_users={"protocol": User("protocol", lp_shares=100.0)},
+        current_users={
+            "protocol": User("protocol", lp_shares=0.0),
+            "bob": User("bob", lp_shares=100.0),
+        },
+        pool=Pool(100.0, 100.0, 0.003, total_lp_shares=100.0),
+        price_y_per_x=1.0,
+    )
+
+    assert fee_income["protocol"] == 2.0
+    assert fee_income["bob"] == 4.0
 
 
 def test_summarize_user_pnl_includes_lp_value() -> None:

@@ -41,7 +41,7 @@ python -m streamlit run streamlit_app.py
 | **LP 做市收益** | 年化收益率、手续费按份额追踪、手续费 vs 无常损失净收支 |
 | **池深度分析** | 反解 AMM 公式，计算指定滑点下的最大可交易量，生成深度曲线 |
 | **离散事件仿真** | 按时间戳优先队列调度，同时间保持入队顺序 |
-| **多用户** | 独立钱包余额与 LP 份额，自动创建新用户 |
+| **多用户** | 独立钱包余额与 LP 份额，事件用户需在配置中声明 |
 | **配置驱动** | YAML 文件定义池参数、用户初始状态和事件序列 |
 | **CSV / JSON 导出** | 事件级日志（32 字段）和结构化摘要 |
 | **Excel 导出** | 多 Sheet 工作簿（事件记录、摘要、PnL、LP 指标、池深度、参数、图表） |
@@ -120,7 +120,7 @@ AMM-Exchange-Simulator/
 │   ├── sample_price_history.csv   # 示例价格数据
 │   └── output/                    # 仿真输出（日志、摘要、图表、Excel）
 │
-├── tests/                         # 47 个测试用例
+├── tests/                         # 51 个测试用例
 │
 ├── requirements.txt               # Python 依赖
 └── README.md                      # ← 你现在正在看这里
@@ -483,7 +483,7 @@ python -m streamlit run streamlit_app.py
 ### 回归测试
 
 ```bash
-# 运行全部 47 个测试用例
+# 运行全部 51 个测试用例
 python -m pytest -q
 
 # 详细输出模式

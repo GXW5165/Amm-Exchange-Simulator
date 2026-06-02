@@ -25,7 +25,7 @@ def impermanent_loss_pct(initial_price: float, current_price: float) -> float | 
 
 
 def impermanent_loss_amount_in_y(initial_pool_value_in_y: float, impermanent_loss_rate_pct: float | None) -> float | None:
-    """把无常损失百分比折算成 Token Y 计价的金额。"""
+    """把无常损失百分比折算成 Token Y 计价的正数损失金额。"""
     if impermanent_loss_rate_pct is None:
         return None
-    return initial_pool_value_in_y * impermanent_loss_rate_pct / 100
+    return abs(initial_pool_value_in_y * impermanent_loss_rate_pct / 100)

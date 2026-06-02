@@ -36,25 +36,40 @@ def compute_fee_income_per_user(
     current_users: dict[str, User],
     pool: Pool,
     price_y_per_x: float,
+    initial_users: dict[str, User] | None = None,
 ) -> dict[str, float]:
-    """按用户当前 LP 份额比例分配每次 swap 事件产生的手续费收入。
+    """按事件发生时的 LP 份额比例分配每次 swap 事件产生的手续费收入。
 
-    遍历所有 swap 事件记录，将每次手续费按当时的总 LP 份额比例分配给
-    所有持有 LP 的用户。因为仿真在事件之间用户 LP 份额不变（仅在
-    add/remove 事件时变化），使用当前用户 LP 份额作为近似已经足够。
+    遍历事件记录时维护一份 LP 份额快照。swap 事件使用交易发生前的
+    快照分配手续费，add/remove 事件再更新快照，避免后加入的 LP 获得
+    加入前的手续费，或已经退出的 LP 丢失退出前的收益。
 
     Args:
         records: 仿真事件记录列表。
-        current_users: 仿真结束时的用户字典（用于 LP 份额比例）。
-        pool: 最终资金池状态。
+        current_users: 仿真结束时的用户字典，作为缺少初始快照时的兜底。
+        pool: 最终资金池状态，保留该参数以兼容旧调用方。
         price_y_per_x: 最终现货价格（用于手续费折算）。
+        initial_users: 仿真开始时的用户字典，用于还原历史 LP 份额。
 
     Returns:
         user_id → 累计手续费收入（Token Y 计价）的映射。
     """
     fee_income: dict[str, float] = {}
+    lp_shares_by_user = {
+        uid: user.lp_shares
+        for uid, user in (initial_users or current_users).items()
+        if user.lp_shares > 0.0
+    }
 
     for record in records:
+        if record.event_type in {"add_liquidity", "remove_liquidity"}:
+            if record.lp_shares_after is not None:
+                if record.lp_shares_after > 0.0:
+                    lp_shares_by_user[record.user_id] = record.lp_shares_after
+                else:
+                    lp_shares_by_user.pop(record.user_id, None)
+            continue
+
         if record.event_type != "swap":
             continue
         fee = float(record.fee or 0.0)
@@ -72,10 +87,10 @@ def compute_fee_income_per_user(
         if total_shares <= 0.0:
             continue
 
-        for uid, user in current_users.items():
-            if user.lp_shares <= 0.0:
+        for uid, lp_shares in lp_shares_by_user.items():
+            if lp_shares <= 0.0:
                 continue
-            share_ratio = user.lp_shares / total_shares
+            share_ratio = lp_shares / total_shares
             fee_income[uid] = fee_income.get(uid, 0.0) + fee_in_y * share_ratio
 
     return fee_income
@@ -128,6 +143,7 @@ def compute_lp_metrics(
         current_users=current_users,
         pool=current_pool,
         price_y_per_x=price_y_per_x,
+        initial_users=initial_users,
     )
 
     # 全局无常损失百分比

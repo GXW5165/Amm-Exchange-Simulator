@@ -22,7 +22,7 @@ from src.application.validation import (
     validate_pool_params,
     validate_users,
 )
-from src.domain.exceptions import InsufficientBalanceError, InsufficientLiquidityError
+from src.domain.exceptions import InsufficientBalanceError, InsufficientLiquidityError, InvalidEventError
 from src.domain.pool import Pool
 from src.domain.user import User
 from src.simulator.engine import SimulatorEngine
@@ -189,7 +189,7 @@ def test_user_pnl_with_no_lp_or_trades_is_zero() -> None:
 
 
 def test_user_pnl_detects_new_user() -> None:
-    """动态创建的新用户应被 PnL 统计正确覆盖。"""
+    """初末用户集合不完全一致时 PnL 统计应覆盖新增账户。"""
     initial = {"alice": User("alice", balance_x=10.0, balance_y=10.0)}
     current = {
         "alice": User("alice", balance_x=5.0, balance_y=15.0),
@@ -249,6 +249,22 @@ def test_simulator_engine_run_is_one_shot() -> None:
 
     engine.run([event])
     with pytest.raises(RuntimeError, match="SimulatorEngine.run\\(\\) has already been called"):
+        engine.run([event])
+
+
+def test_simulator_rejects_unknown_event_user() -> None:
+    """核心仿真层也应拒绝未声明用户，和配置校验保持一致。"""
+    pool = Pool(1000.0, 1000.0, 0.0)
+    engine = SimulatorEngine(pool, {"alice": User("alice", balance_x=100.0)})
+    event = Event(
+        timestamp=1.0,
+        event_id=1,
+        event_type=EventType.SWAP,
+        user_id="ghost",
+        payload={"direction": "x_to_y", "amount_in": 5.0},
+    )
+
+    with pytest.raises(InvalidEventError, match="ghost"):
         engine.run([event])
 
 

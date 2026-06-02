@@ -63,9 +63,9 @@ def summarize_user_pnl(
 ) -> dict[str, UserPnL]:
     """按用户生成收益表。
 
-    initial_users 和 current_users 允许用户集合不完全一致，这样后续扩展动态创建
-    用户时也能正常统计；初始用户如果持有 LP 份额，其初始 LP 仓位也会纳入
-    持有基准，避免把初始做市资金误算为后续收益。
+    initial_users 和 current_users 允许用户集合不完全一致，这样协议账户、
+    迁移数据或后续扩展账户来源也能正常统计；初始用户如果持有 LP 份额，
+    其初始 LP 仓位也会纳入持有基准，避免把初始做市资金误算为后续收益。
     """
     summary: dict[str, UserPnL] = {}
     raw_initial_price = price_y_per_x if initial_price_y_per_x is None else initial_price_y_per_x

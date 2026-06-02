@@ -40,9 +40,9 @@ class SimulatorEngine:
         self.event_queue = EventQueue()
 
     def ensure_user(self, user_id: str) -> User:
-        """取得用户；如果事件引用了新用户，则创建空钱包用户。"""
+        """取得已声明用户；未知用户表示事件配置非法。"""
         if user_id not in self.users:
-            self.users[user_id] = User(user_id=user_id)
+            raise InvalidEventError(f"User {user_id!r} is not defined")
         return self.users[user_id]
 
     def schedule(self, event: Event) -> None:
@@ -307,4 +307,3 @@ class SimulatorEngine:
             invariant_before=invariant_before,
             invariant_after=invariant_after,
         )
-

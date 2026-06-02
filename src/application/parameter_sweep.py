@@ -132,18 +132,23 @@ def run_parameter_sweep(
             name: artifacts.result for name, artifacts in results.items()
         }
         plot_multi_scenario_comparison(scenario_results, output_root)
-    except Exception:
-        # 对比图表生成失败不影响主体结果
-        pass
+    except Exception as exc:
+        _append_warning_to_artifacts(results, f"Multi-scenario comparison plot failed: {exc}")
 
     # ── 导出对比 CSV ──
     try:
         table = build_comparison_table(results)
         export_comparison_table_csv(table, Path(output_root) / "comparison.csv")
-    except Exception:
-        pass
+    except Exception as exc:
+        _append_warning_to_artifacts(results, f"Parameter sweep comparison CSV failed: {exc}")
 
     return results
+
+
+def _append_warning_to_artifacts(results: dict[str, "SimulationArtifacts"], message: str) -> None:
+    """把参数遍历附加产物失败信息写回每个场景产物。"""
+    for artifacts in results.values():
+        artifacts.warnings.append(message)
 
 
 def build_comparison_table(
