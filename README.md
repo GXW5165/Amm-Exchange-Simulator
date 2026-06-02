@@ -257,238 +257,85 @@ data/output/
 
 ## 🧪 测试指南
 
-### 方式一：CLI 命令行测试
+本节面向项目开发者，目标是说明每次修改后应如何验证代码，而不是提供单次演示用例。建议按“自动化测试 → CLI 冒烟 → Web 冒烟 → 产物检查”的顺序执行。
 
-提供三种命令行模式：**非交互式一键运行**、**交互式菜单**、**配置文件驱动**。
+### 1. 准备环境
 
----
-
-**测试 ①：交互式菜单**
+先在项目根目录安装依赖，并确认使用的是同一个 Python 环境：
 
 ```bash
-python main.py
+pip install -r requirements.txt
+python --version
 ```
 
-进入彩色菜单界面后，依次操作：
+如果依赖或 Python 版本发生变化，先重新运行完整测试，再进行功能验证。
 
-| # | 操作 | 预期结果 |
-|:-:|:----|:---------|
-| 1 | 看到主菜单，显示 0-9 号选项 | 菜单标题 "AMM Exchange Simulator"，含 Simulation / Manual Operations / Inspect / Export / System 五组 |
-| 2 | 输入 **3**（Initialize pool），依次输入 `reserve_x=1000`、`reserve_y=1000`、`fee_rate=0.003` | 显示 `✓ Pool initialized` |
-| 3 | 输入 **7**（View pool status） | 打印 Reserve X=1000、Reserve Y=1000、Fee Rate=0.003、Spot Price=1.0 |
-| 4 | 输入 **4**（Execute a swap），输入 `User ID=alice`、`Direction=x_to_y`、`Amount In=10` | 显示 `✓ Swap executed. Spot price: 1.010... Y/X` |
-| 5 | 输入 **4**（再执行一次 swap），输入 `User ID=alice`、`Direction=x_to_y`、`Amount In=50` | 显示新的 spot price，价格因滑点进一步升高 |
-| 6 | 输入 **5**（Add liquidity），输入 `User ID=bob`、`Amount X=20`、`Amount Y=20` | 显示 `✓ Liquidity added` |
-| 7 | 输入 **7**（View pool status） | LP Total Shares 增加 |
-| 8 | 输入 **8**（View user status） | 列出 alice 和 bob 的钱包余额和 LP 份额，alice 的 Token X 减少、Token Y 增加 |
-| 9 | 输入 **9**（Export records to CSV） | 显示 `✓ Records exported to .../interactive/simulation.csv` |
-| 10 | 输入 **0** 退出 | 提示 `You have 3 unsaved event record(s)`, 输入 y 再确认导出，然后显示 `Goodbye.` |
+### 2. 运行自动化测试
 
----
+常规开发完成后先运行全部测试：
 
-**测试 ②：一键 Demo 运行（非交互式）**
+```bash
+python -m pytest -q
+```
+
+需要定位失败原因时使用详细模式：
+
+```bash
+python -m pytest -v
+```
+
+修改单个模块时，可以先运行相关测试文件，确认局部行为，再回到全量测试。例如修改分析指标后先跑 `tests/test_analytics.py`，修改仿真主循环后先跑 `tests/test_simulator.py` 或 `tests/test_edge_cases.py`。
+
+### 3. 运行 CLI 冒烟测试
+
+自动化测试通过后，运行非交互式 Demo，确认配置加载、仿真、摘要、图表导出链路正常：
 
 ```bash
 python main.py --demo
 ```
 
-**预期输出**（关键行）：
-```
-[simulation] processed_events=9
-[simulation] swap_events=7
-[simulation] liquidity_events=2
-[simulation] total_fees=0.900000
-[simulation] total_fees_in_y=0.921463
-[simulation] average_slippage_pct=4.338007
-[simulation] max_slippage_pct=9.517502
-[simulation] impermanent_loss_pct=-0.059822
-```
+检查命令输出中事件数、swap 数、流动性事件数、手续费、滑点和无常损失字段是否正常打印。随后检查 `data/output/logs/` 和 `data/output/results/` 是否生成 CSV、JSON 和 PNG 图表。
 
-**预期产物**：以下文件全部自动生成
-
-| 文件 | 说明 |
-|:-----|:-----|
-| `data/output/logs/simulation.csv` | 事件日志，32 列，9 行 |
-| `data/output/results/summary.json` | 结构化摘要，含新增字段 |
-| `data/output/results/pool_spot_price.png` | 现货价格走势 |
-| `data/output/results/pool_reserves.png` | 双边储备变化 |
-| `data/output/results/swap_slippage.png` | 交易滑点（有 7 个点） |
-| `data/output/results/cumulative_fees.png` | 累计手续费 |
-| `data/output/results/impermanent_loss.png` | 无常损失曲线 |
-| `data/output/results/user_total_pnl.png` | 用户收益柱状图 |
-| `data/output/results/candlestick.png` | ✅ **K 线图（≥2 swap 时生成）** |
-| `data/output/results/slippage_volume.png` | ✅ **滑点-交易量散点图** |
-
----
-
-**测试 ③：自定义配置文件运行**
+配置文件路径相关改动需要额外运行：
 
 ```bash
-# 使用默认配置运行
 python main.py --config configs/default.yaml
-
-# 运行对比实验场景（手续费率对比 + 流动性深度对比）
 python main.py --config configs/default.yaml --scenarios
 ```
 
-**预期输出**：一键 Demo 全部输出 + 额外场景目录 `data/output/scenarios/` 下生成每个场景独立 CSV/JSON/PNG。
+场景命令应在 `data/output/scenarios/` 下生成每个场景独立的日志、摘要和图表。
 
----
-
-### 方式二：Python API 直接调用测试
-
-下方三段代码可直接复制到终端运行（`python -c "..."` 或存为 `.py` 文件），**无需额外编写测试程序**。
-
----
-
-**测试 ④：检查新分析指标（池深度 + LP 收益 + PnL 拆分）**
-
-```python
-from pathlib import Path
-from src.infrastructure.config_loader import load_config
-from src.application.simulation_runner import SimulationRunner
-
-ROOT = Path('.')
-config = load_config(ROOT / 'configs' / 'default.yaml')
-runner = SimulationRunner(ROOT)
-artifacts = runner.run_from_config(config)
-s = artifacts.result.summary
-
-print(f"Pool Depth @2%: {s.pool_depth_at_2pct:.4f}")
-print(f"Time Span (days): {s.time_span_days:.4f}")
-print(f"LP APYs: {s.lp_annualized_returns}")
-for uid, pnl in s.user_pnl.items():
-    print(f"{uid}: total={pnl.total_pnl_in_y:.4f}, "
-          f"fee_income={pnl.fee_net_income_in_y:.4f}, "
-          f"il_loss={pnl.il_loss_in_y:.4f}")
-```
-
-**预期结果**：
-- `Pool Depth @2%` > 0（约 18.29）
-- `Time Span (days)` ≈ 1.2083（t=1~t=30 除以 24 小时）
-- `LP APYs` 非空
-- 每个用户的 `total_pnl = wallet_pnl + position_pnl + fee_income - il_loss` 恒等关系成立
-
----
-
-**测试 ⑤：批量参数遍历 + 对比表**
-
-```python
-from pathlib import Path
-from src.infrastructure.config_loader import load_config
-from src.application.simulation_runner import SimulationRunner
-from src.application.parameter_sweep import (
-    generate_param_grid, run_parameter_sweep, build_comparison_table,
-)
-
-ROOT = Path('.')
-base = load_config(ROOT / 'configs' / 'default.yaml')
-runner = SimulationRunner(ROOT)
-
-grid = generate_param_grid(fee_rate=[0.001, 0.003, 0.01])
-results = run_parameter_sweep(base, grid, runner, 'data/output/sweep_demo')
-
-table = build_comparison_table(results)
-for row in table:
-    print(f"{row['scenario']}: "
-          f"slippage={row['avg_slippage_pct']}, "
-          f"depth={row['pool_depth_at_2pct']}, "
-          f"fees={row['total_fees_in_y']}")
-```
-
-**预期输出**（数值近似，趋势必成立）：
-```
-fee_rate_0_001: slippage=4.15..., depth=20.39..., fees=0.30...
-fee_rate_0_003: slippage=4.33..., depth=18.28..., fees=0.92...
-fee_rate_0_01: slippage=4.98..., depth=10.84..., fees=3.07...
-```
-
-**验证逻辑**（fee_rate ↑ 时）：
-| 指标 | 变化 | 原因 |
-|:-----|:----|:-----|
-| avg_slippage | **递增** | 手续费越高，有效交易量越小，滑点越大 |
-| pool_depth | **递减** | 手续费越高，相同滑点下可交易量越小 |
-| total_fees | **递增** | 费率越高，累计手续费越多 |
-
-**输出目录结构**：
-```
-data/output/sweep_demo/
-├── fee_rate_0_001/         # CSV + JSON + 8 张 PNG
-├── fee_rate_0_003/
-├── fee_rate_0_01/
-├── comparison.csv          # 对比表 (3行 × 12列)
-└── multi_scenario_comparison.png  # 分组柱状对比图
-```
-
----
-
-**测试 ⑥：Excel 多 Sheet 导出验证**
-
-```python
-from pathlib import Path
-from src.infrastructure.config_loader import load_config
-from src.application.simulation_runner import SimulationRunner
-from src.infrastructure.excel_exporter import export_to_excel
-import openpyxl
-
-ROOT = Path('.')
-config = load_config(ROOT / 'configs' / 'default.yaml')
-runner = SimulationRunner(ROOT)
-artifacts = runner.run_from_config(config)
-xlsx_path = export_to_excel(artifacts, 'data/output/demo.xlsx')
-
-wb = openpyxl.load_workbook(xlsx_path)
-print(f"Sheets: {wb.sheetnames}")
-for name in wb.sheetnames:
-    ws = wb[name]
-    print(f"  {name}: {ws.max_row} rows × {ws.max_column} cols")
-```
-
-**预期输出**：
-```
-Sheets: ['Event Records', 'Summary', 'User PnL', 'LP Metrics', 'Pool Depth', 'Parameters', 'Charts']
-  Event Records: 10 rows × 32 cols
-  Summary: 14 rows × 2 cols
-  User PnL: 4 rows × 14 cols
-  LP Metrics: 3 rows × 9 cols
-  Pool Depth: 7 rows × 3 cols
-  Parameters: 14 rows × 2 cols
-  Charts: 151 rows × 1 cols
-```
-
----
-
-### 方式三：Web 界面交互式测试
+### 4. 运行 Web 冒烟测试
 
 ```bash
 python -m streamlit run streamlit_app.py
 ```
 
-打开浏览器（默认 http://localhost:8501），按以下步骤操作：
+打开浏览器后按以下流程检查：
 
 | # | 操作 | 预期结果 |
 |:-:|:----|:---------|
-| 1 | 点击 **Default Config** 页签，点击 **▶ Run Default Config** | 显示 3 行指标卡片（共 12 个），新增 **Best LP APY**、**Pool Depth @2%**、**IL Amount**、**Time Span** |
-| 2 | 滚动到 **Charts** 区域 | 8 张图表以 2 列网格排列，含 **candlestick** 和 **slippage_volume** |
-| 3 | 展开 **📊 Detailed PnL Breakdown** | 显示每个用户的 Wallet / Fee Income / IL Loss / Total PnL 明细表 |
-| 4 | 点击 **📥 Download CSV Log** | 下载 simulation.csv（32 列） |
-| 5 | 点击 **📥 Download JSON Summary** | 下载 summary.json（含 `lp_annualized_returns`、`pool_depth_at_2pct`、`time_span_days`） |
-| 6 | 点击 **📥 Download Excel Report** | 下载 simulation.xlsx（7 个 Sheet） |
-| 7 | 切换到 **Custom Simulation**，改 fee_rate 为 0.01，点击 **▶ Run Custom Simulation** | 滑点/手续费等指标相应变化 |
-| 8 | 在事件表中新增 2 行 swap 事件，再次运行 | 事件记录表更新，图表数据点增加 |
-| 9 | 展开 **💾 Save / Load Config**，输入名称保存，再重新加载 | 参数恢复为保存时的状态 |
+| 1 | 运行默认配置 | 摘要指标、事件表、用户 PnL 和图表正常展示 |
+| 2 | 下载 CSV、JSON 和 Excel | 下载文件存在且能打开 |
+| 3 | 修改自定义参数并运行 | 指标、事件记录和图表随输入变化 |
+| 4 | 保存并加载自定义配置 | 加载后表单恢复为保存时的参数 |
 
----
+Web 相关代码变更后，应同时检查默认配置流程和自定义配置流程。
 
-### 回归测试
+### 5. 检查导出产物
 
-```bash
-# 运行全部 51 个测试用例
-python -m pytest -q
+每次完整验证后，至少检查以下产物：
 
-# 详细输出模式
-python -m pytest -v
-```
+| 产物 | 检查内容 |
+|:-----|:---------|
+| CSV 日志 | 字段完整，事件数量与配置一致 |
+| JSON 摘要 | 总事件数、手续费、滑点、IL、PnL、LP 指标存在 |
+| PNG 图表 | 价格、储备、滑点、费用、IL、PnL 等图表生成 |
+| Excel 报告 | Event Records、Summary、User PnL、LP Metrics、Pool Depth、Parameters、Charts 等 Sheet 存在 |
+
+导出目录通常位于 `data/output/`。该目录属于运行产物，不应提交到版本库。
+
+### 6. 测试覆盖范围
 
 | 测试文件 | 覆盖内容 |
 |----------|---------|
