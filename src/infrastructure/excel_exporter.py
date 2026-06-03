@@ -77,7 +77,7 @@ def export_to_excel(
 
     # ── Sheet 7: Charts (图片) ──
     if include_charts and artifacts.plot_paths:
-        _embed_chart_images(wb, artifacts.plot_paths)
+        artifacts.warnings.extend(_embed_chart_images(wb, artifacts.plot_paths))
 
     wb.save(output_path)
     return output_path
@@ -228,11 +228,12 @@ def _write_parameters_sheet(wb, result: SimulationResult) -> None:
     _auto_column_width(ws)
 
 
-def _embed_chart_images(wb, plot_paths: dict[str, Path]) -> None:
-    """将图表 PNG 图片嵌入 Excel 的 "Charts" Sheet。"""
+def _embed_chart_images(wb, plot_paths: dict[str, Path]) -> list[str]:
+    """将图表 PNG 图片嵌入 Excel 的 "Charts" Sheet，并返回失败告警。"""
     import openpyxl.drawing.image
 
     ws = wb.create_sheet("Charts")
+    warnings: list[str] = []
     row = 1
     for name in sorted(plot_paths.keys()):
         path = plot_paths[name]
@@ -246,5 +247,6 @@ def _embed_chart_images(wb, plot_paths: dict[str, Path]) -> None:
             ws.add_image(img, f"A{row}")
             ws.cell(row=row, column=1, value=name)
             row += 25  # 每个图约占 25 行
-        except Exception:
-            continue
+        except Exception as exc:
+            warnings.append(f"Excel chart embedding failed for {name}: {exc}")
+    return warnings

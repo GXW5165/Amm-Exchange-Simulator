@@ -2,9 +2,12 @@ from pathlib import Path
 
 import pytest
 
+from src.application.initialization import assign_initial_lp_owner
 from src.application.simulation_runner import SimulationRunner
+from src.domain.pool import Pool
 from src.domain.user import User
 from src.infrastructure.config_loader import AppConfig, load_config
+from src.infrastructure.excel_exporter import export_to_excel
 
 
 def test_simulation_runner_exports_all_artifacts(tmp_path: Path) -> None:
@@ -69,3 +72,38 @@ def test_runner_rejects_over_assigned_initial_lp(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="LP shares"):
         SimulationRunner(tmp_path).run_from_config(config)
+
+
+def test_assign_initial_lp_owner_is_public_helper() -> None:
+    pool = Pool(1000.0, 1000.0, 0.003)
+    users = {"alice": User("alice", lp_shares=100.0)}
+
+    prepared = assign_initial_lp_owner(users, pool, "protocol")
+
+    assert prepared["alice"].lp_shares == 100.0
+    assert prepared["protocol"].lp_shares == 900.0
+    assert "protocol" not in users
+
+
+def test_assign_initial_lp_owner_rejects_blank_owner_when_remainder_exists() -> None:
+    pool = Pool(1000.0, 1000.0, 0.003)
+
+    with pytest.raises(ValueError, match="initial_lp_owner"):
+        assign_initial_lp_owner({}, pool, "")
+
+
+def test_excel_export_records_chart_embedding_warnings(tmp_path: Path) -> None:
+    config = load_config("configs/default.yaml")
+    config.log_path = "simulation.csv"
+    config.summary_path = "summary.json"
+    config.plot_dir = "plots"
+    artifacts = SimulationRunner(tmp_path).run_from_config(config)
+
+    bad_image = tmp_path / "bad-image.png"
+    bad_image.write_text("not a real png", encoding="utf-8")
+    artifacts.plot_paths = {"bad_chart": bad_image}
+
+    xlsx_path = export_to_excel(artifacts, tmp_path / "simulation.xlsx")
+
+    assert xlsx_path.exists()
+    assert any("bad_chart" in warning for warning in artifacts.warnings)

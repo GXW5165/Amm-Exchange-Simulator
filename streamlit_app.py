@@ -90,10 +90,6 @@ def _show_result(artifacts, *, section_key: str) -> None:
     )
     cols[3].metric("Time Span (days)", f"{summary.time_span_days:.4f}")
 
-    if artifacts.warnings:
-        for warning in artifacts.warnings:
-            st.warning(warning)
-
     # ── 事件表 ──
     st.subheader("Event Records")
     records_df = pd.DataFrame([r.to_csv_row() for r in artifacts.result.records])
@@ -159,8 +155,13 @@ def _show_result(artifacts, *, section_key: str) -> None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"{section_key}_dl_xlsx",
         )
-    except Exception:
+    except Exception as exc:
+        artifacts.warnings.append(f"Excel export failed: {exc}")
         dl_cols[2].caption("Excel export unavailable")
+
+    if artifacts.warnings:
+        for warning in artifacts.warnings:
+            st.warning(warning)
 
     # ── 图表 2×3 网格 ──
     if artifacts.plot_paths:

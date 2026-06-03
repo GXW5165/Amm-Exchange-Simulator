@@ -1,8 +1,9 @@
 """应用层导出。
 
-提供配置驱动运行、输入校验和实验场景构造。
+提供配置驱动运行、初始化辅助、输入校验和实验场景构造。
 """
 
+from .initialization import assign_initial_lp_owner
 from .parameter_sweep import (
     build_comparison_table,
     build_scenario_name,
@@ -18,6 +19,7 @@ __all__ = [
     "SimulationArtifacts",
     "SimulationRunner",
     "ValidationResult",
+    "assign_initial_lp_owner",
     "build_comparison_table",
     "build_fee_rate_scenarios",
     "build_large_trade_shock_scenario",
