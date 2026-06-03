@@ -1,0 +1,159 @@
+initial_reserve_x: 5000.0
+initial_reserve_y: 4500.0
+fee_rate: 0.0015
+initial_lp_owner: protocol
+log_path: data/output/complex_configs/liquidity_rotation_deep_pool/simulation.csv
+summary_path: data/output/complex_configs/liquidity_rotation_deep_pool/summary.json
+plot_dir: data/output/complex_configs/liquidity_rotation_deep_pool/plots
+users:
+  alice:
+    balance_x: 2000.0
+    balance_y: 1600.0
+    lp_shares: 0.0
+  bob:
+    balance_x: 1600.0
+    balance_y: 2000.0
+    lp_shares: 0.0
+  carol:
+    balance_x: 1200.0
+    balance_y: 2500.0
+    lp_shares: 0.0
+  dave:
+    balance_x: 2500.0
+    balance_y: 1200.0
+    lp_shares: 0.0
+  erin:
+    balance_x: 1800.0
+    balance_y: 1800.0
+    lp_shares: 0.0
+  grace:
+    balance_x: 2200.0
+    balance_y: 900.0
+    lp_shares: 0.0
+events:
+  - timestamp: 1
+    event_type: add_liquidity
+    user_id: alice
+    amount_x: 600.0
+    amount_y: 540.0
+  - timestamp: 2
+    event_type: swap
+    user_id: bob
+    direction: y_to_x
+    amount_in: 350.0
+  - timestamp: 3
+    event_type: add_liquidity
+    user_id: dave
+    amount_x: 700.0
+    amount_y: 600.0
+  - timestamp: 4
+    event_type: swap
+    user_id: grace
+    direction: x_to_y
+    amount_in: 500.0
+  - timestamp: 5
+    event_type: swap
+    user_id: carol
+    direction: y_to_x
+    amount_in: 450.0
+  - timestamp: 6
+    event_type: add_liquidity
+    user_id: erin
+    amount_x: 450.0
+    amount_y: 420.0
+  - timestamp: 7
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 300.0
+  - timestamp: 8
+    event_type: swap
+    user_id: dave
+    direction: y_to_x
+    amount_in: 240.0
+  - timestamp: 9
+    event_type: remove_liquidity
+    user_id: alice
+    lp_share: 150.0
+  - timestamp: 10
+    event_type: swap
+    user_id: bob
+    direction: x_to_y
+    amount_in: 220.0
+  - timestamp: 11
+    event_type: add_liquidity
+    user_id: carol
+    amount_x: 300.0
+    amount_y: 330.0
+  - timestamp: 12
+    event_type: swap
+    user_id: grace
+    direction: x_to_y
+    amount_in: 380.0
+  - timestamp: 13
+    event_type: remove_liquidity
+    user_id: dave
+    lp_share: 180.0
+  - timestamp: 14
+    event_type: swap
+    user_id: erin
+    direction: y_to_x
+    amount_in: 320.0
+  - timestamp: 15
+    event_type: swap
+    user_id: alice
+    direction: y_to_x
+    amount_in: 260.0
+  - timestamp: 16
+    event_type: add_liquidity
+    user_id: bob
+    amount_x: 300.0
+    amount_y: 260.0
+  - timestamp: 17
+    event_type: swap
+    user_id: carol
+    direction: y_to_x
+    amount_in: 500.0
+  - timestamp: 18
+    event_type: remove_liquidity
+    user_id: erin
+    lp_share: 120.0
+  - timestamp: 19
+    event_type: swap
+    user_id: dave
+    direction: x_to_y
+    amount_in: 420.0
+  - timestamp: 20
+    event_type: swap
+    user_id: grace
+    direction: y_to_x
+    amount_in: 180.0
+  - timestamp: 21
+    event_type: add_liquidity
+    user_id: alice
+    amount_x: 250.0
+    amount_y: 220.0
+  - timestamp: 22
+    event_type: swap
+    user_id: bob
+    direction: y_to_x
+    amount_in: 300.0
+  - timestamp: 23
+    event_type: remove_liquidity
+    user_id: carol
+    lp_share: 90.0
+  - timestamp: 24
+    event_type: swap
+    user_id: erin
+    direction: x_to_y
+    amount_in: 280.0
+  - timestamp: 25
+    event_type: add_liquidity
+    user_id: grace
+    amount_x: 350.0
+    amount_y: 180.0
+  - timestamp: 26
+    event_type: swap
+    user_id: dave
+    direction: y_to_x
+    amount_in: 160.0
