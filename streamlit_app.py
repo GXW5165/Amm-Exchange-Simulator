@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-"""Streamlit entry point for the AMM simulator."""
-
 from pathlib import Path
 
 import pandas as pd
@@ -237,7 +235,6 @@ def _render_save_load_ui(
                         st.session_state[f"{section_key}_editor_version"] = (
                             st.session_state.get(f"{section_key}_editor_version", 0) + 1
                         )
-                        st.session_state["active_view"] = "Custom Simulation"
                         st.session_state.pop(f"{section_key}_artifacts", None)
                         st.rerun()
             if btn_cols[1].button("🗑 Delete", width="stretch", key=f"{section_key}_del_btn"):
