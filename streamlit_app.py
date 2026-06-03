@@ -1,16 +1,6 @@
 from __future__ import annotations
 
-"""Streamlit Web 入口。
-
-页面提供两个工作流：默认配置一键运行，以及自定义池参数、用户和事件序列后
-运行仿真。核心计算仍由 application/simulator/amm 层完成，Web 层只负责输入、
-展示和下载。
-
-支持：
-- 添加/删除用户（data_editor 底部空白行即可新增，右键菜单可删除）
-- 保存/加载自定义配置（YAML 文件持久化，跨浏览器会话复用）
-- 2×3 图表网格布局
-"""
+"""Streamlit entry point for the AMM simulator."""
 
 from pathlib import Path
 
@@ -247,6 +237,7 @@ def _render_save_load_ui(
                         st.session_state[f"{section_key}_editor_version"] = (
                             st.session_state.get(f"{section_key}_editor_version", 0) + 1
                         )
+                        st.session_state["active_view"] = "Custom Simulation"
                         st.session_state.pop(f"{section_key}_artifacts", None)
                         st.rerun()
             if btn_cols[1].button("🗑 Delete", width="stretch", key=f"{section_key}_del_btn"):
@@ -263,7 +254,6 @@ def _render_save_load_ui(
 def _run_default_config() -> None:
     """默认配置运行页签。"""
     st.subheader("Default Config Simulation")
-    st.caption("Load the built-in default.yaml and run a one-click simulation.")
 
     if st.button("▶ Run Default Config", width="stretch", type="primary"):
         config = load_config(DEFAULT_CONFIG_PATH)
@@ -278,12 +268,6 @@ def _run_default_config() -> None:
 def _run_custom_simulation() -> None:
     """自定义参数运行页签：支持编辑参数、保存/加载配置、运行仿真。"""
     st.subheader("Custom Simulation")
-    st.caption(
-        "Edit pool parameters, users, and events below. "
-        "▶ **Add users** by typing in the empty row at the bottom of the user table. "
-        "▶ **Delete rows** via right-click on a row number. "
-        "▶ **Save** your config for later reuse."
-    )
 
     # ── 池参数 ──
     default_config = load_config(DEFAULT_CONFIG_PATH)
@@ -450,16 +434,22 @@ def main() -> None:
         layout="wide",
     )
     st.title("📈 AMM Exchange Simulator")
-    st.caption("Constant-product AMM simulation — interactive web interface")
 
     removed = cleanup_old_web_runs(keep=5)
     if removed:
-        st.info(f"Cleaned up {removed} old web run(s); only the latest 5 are kept.")
+        st.sidebar.caption(f"Cleaned up {removed} old web run(s); only the latest 5 are kept.")
 
-    tab_default, tab_custom = st.tabs(["Default Config", "Custom Simulation"])
-    with tab_default:
+    selected_view = st.radio(
+        "Simulation mode",
+        ["Default Config", "Custom Simulation"],
+        horizontal=True,
+        label_visibility="collapsed",
+        key="active_view",
+    )
+
+    if selected_view == "Default Config":
         _run_default_config()
-    with tab_custom:
+    else:
         _run_custom_simulation()
 
 
