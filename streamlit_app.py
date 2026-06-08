@@ -525,7 +525,7 @@ def _run_custom_simulation() -> None:
         column_config={
             "event_type": st.column_config.SelectboxColumn(
                 "event_type",
-                options=["swap", "add_liquidity", "remove_liquidity", "arbitrage"],
+                options=["swap", "add_liquidity", "remove_liquidity"],
                 width="medium",
             ),
             "direction": st.column_config.SelectboxColumn(
