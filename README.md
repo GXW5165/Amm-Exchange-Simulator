@@ -1,42 +1,49 @@
 # AMM Exchange Simulator
 
-AMM Exchange Simulator is a local, offline simulator for a constant-product automated market maker. It models a single X/Y liquidity pool using `x * y = k`, runs timestamped events, records every state transition, and exports analytical reports for DeFi mechanism study, course projects, and repeatable experiments.
+> 本地离线的恒定乘积 AMM 仿真系统，用于 DeFi 机制学习、课程项目和可复现实验分析。
 
-The project does not connect to any blockchain node and does not handle real assets.
+AMM Exchange Simulator 模拟一个 X/Y 双资产自动做市商资金池，核心模型为 `x * y = k`。项目可以按时间顺序执行交易、添加流动性、移除流动性等事件，并输出事件日志、统计摘要、图表、Excel 和 PDF 实验报告。
 
-## What It Supports
+本项目不连接区块链节点，不接入真实钱包，也不处理真实资产。
 
-| Area | Capabilities |
+## 功能概览
+
+| 模块 | 说明 |
 | --- | --- |
-| AMM trading | X to Y and Y to X swaps, constant-product pricing, fee retention in the pool |
-| Liquidity management | Add/remove liquidity, LP share minting and burning, initial LP ownership assignment |
-| Simulation | Timestamp-ordered event execution, multi-user wallets, YAML-driven scenarios |
-| Analytics | Slippage, impermanent loss, user PnL, LP fee income, LP APY, pool depth |
-| Backtesting | Import historical price CSV data and generate synthetic swap events from price moves |
-| Reports | CSV logs, JSON summaries, Excel workbooks, PNG charts, PDF experiment reports |
-| Interfaces | Non-interactive CLI, interactive CLI menu, Streamlit Web UI |
-| Experiments | Built-in scenario runs and parameter sweeps for fee and liquidity comparisons |
+| AMM 交易 | 支持 X -> Y、Y -> X 双向 swap，按恒定乘积公式定价 |
+| 手续费 | 交易手续费沉淀在池内，影响 LP 收益和池子状态 |
+| 流动性管理 | 支持添加/移除流动性，计算 LP 份额铸造和销毁 |
+| 离散事件仿真 | 按 timestamp 排序执行事件，记录每一步前后状态 |
+| 多用户钱包 | 每个用户有独立 Token X、Token Y 和 LP shares |
+| 分析指标 | 滑点、无常损失、用户 PnL、LP 收益、池深度 |
+| 历史价格回测 | 导入历史价格 CSV，根据价格波动自动生成模拟交易事件 |
+| 可视化 | 输出价格、储备、滑点、手续费、PnL 等图表 |
+| 报告导出 | 支持 CSV、JSON、Excel、PDF |
+| Web 界面 | 使用 Streamlit 进行参数编辑、回测、结果查看和文件下载 |
+| CLI | 支持一键 demo、配置文件运行、批量场景运行和交互式菜单 |
 
-## Quick Start
+## 快速开始
+
+推荐使用项目当前测试环境中的 Python：
 
 ```powershell
-# Install dependencies
+# 安装依赖
 D:\miniconda3\envs\jrrg\python.exe -m pip install -r requirements.txt
 
-# Run the default one-command demo
+# 一键运行默认 demo
 D:\miniconda3\envs\jrrg\python.exe main.py --demo
 
-# Run the default config plus comparison scenarios
+# 使用默认配置并运行内置对比场景
 D:\miniconda3\envs\jrrg\python.exe main.py --config configs/default.yaml --scenarios
 
-# Open the interactive CLI menu
+# 打开交互式 CLI 菜单
 D:\miniconda3\envs\jrrg\python.exe main.py
 
-# Start the Web UI
+# 启动 Web 界面
 D:\miniconda3\envs\jrrg\python.exe -m streamlit run streamlit_app.py
 ```
 
-If `python` already points to your intended environment, the shorter forms also work:
+如果你的 `python` 已经指向正确环境，也可以使用简写：
 
 ```bash
 python main.py --demo
@@ -44,55 +51,53 @@ python -m streamlit run streamlit_app.py
 python -m pytest -q
 ```
 
-## Project Layout
+## 项目结构
 
 ```text
 amm-exchange-simulator/
 ├── configs/
-│   └── default.yaml                  # Default simulation config
+│   └── default.yaml                  # 默认仿真配置
 ├── data/
-│   ├── sample_price_history.csv      # Backtesting sample data
-│   ├── stable_market.csv
-│   ├── trend_market.csv
-│   ├── volatile_market.csv
-│   ├── saved_configs/                # Web-saved user configs
-│   └── output/                       # Generated outputs, ignored by Git
+│   ├── sample_price_history.csv      # 回测示例价格数据
+│   ├── stable_market.csv             # 稳定市场样例
+│   ├── trend_market.csv              # 趋势市场样例
+│   ├── volatile_market.csv           # 高波动市场样例
+│   ├── saved_configs/                # Web 保存的用户配置
+│   └── output/                       # 运行输出，已被 Git 忽略
 ├── src/
-│   ├── amm/                          # Swap engine and liquidity manager
-│   ├── analytics/                    # Metrics, summaries, PDF reports
-│   ├── application/                  # Runner, validation, scenarios, backtesting
-│   ├── domain/                       # Pool, user, exceptions
-│   ├── infrastructure/               # Config loading and file exporters
+│   ├── amm/                          # AMM 交易引擎与流动性管理
+│   ├── analytics/                    # 指标、摘要、PDF 报告
+│   ├── application/                  # 运行编排、校验、场景、回测
+│   ├── domain/                       # Pool、User、异常类型
+│   ├── infrastructure/               # 配置读取与文件导出
 │   ├── interface/                    # CLI
-│   ├── simulator/                    # Event model, queue, execution engine
-│   ├── visualization/                # PNG chart generation
-│   └── web/                          # Streamlit support helpers
-├── tests/                            # Pytest suite
-├── main.py                           # CLI entry point
-├── streamlit_app.py                  # Streamlit Web entry point
-├── requirements.txt
-└── pytest.ini
+│   ├── simulator/                    # 事件、队列、仿真引擎
+│   ├── visualization/                # 图表生成
+│   └── web/                          # Streamlit 支撑函数
+├── tests/                            # pytest 测试套件
+├── main.py                           # CLI 入口
+├── streamlit_app.py                  # Web 入口
+├── requirements.txt                  # 依赖列表
+└── pytest.ini                        # pytest 配置
 ```
 
-## Architecture
+## 分层架构
 
-The code is organized as a layered application:
+项目按职责分层，整体依赖方向保持清晰：界面层调用应用层，应用层编排仿真和导出，底层领域模型不依赖上层。
 
-| Layer | Responsibility |
+| 层 | 职责 |
 | --- | --- |
-| Domain | Core data models such as `Pool` and `User` |
-| AMM | Constant-product swap and liquidity operations |
-| Simulator | Event ordering, execution loop, result object |
-| Application | Config-driven runs, validation, scenarios, backtesting, sweeps |
-| Analytics | Slippage, IL, LP metrics, PnL, summaries, PDF report generation |
-| Infrastructure | YAML loading, CSV/JSON/Excel exports |
-| Interface / Web | CLI and Streamlit user workflows |
+| Domain | 核心数据模型，例如 `Pool`、`User` |
+| AMM | swap 定价、执行和流动性份额计算 |
+| Simulator | 事件排序、事件执行、结果聚合 |
+| Application | 配置驱动运行、输入校验、实验场景、历史回测、参数遍历 |
+| Analytics | 滑点、无常损失、LP 指标、PnL、摘要、PDF 报告 |
+| Infrastructure | YAML 加载、CSV/JSON/Excel 导出 |
+| Interface / Web | 命令行和 Streamlit 交互 |
 
-The important dependency direction is top-down: UI and application code call into the simulator and services; domain models stay independent.
+## 核心模型
 
-## Core Model
-
-For an X to Y swap:
+X -> Y 交易的基本计算：
 
 ```text
 k = x * y
@@ -100,33 +105,37 @@ effective_dx = dx * (1 - fee_rate)
 dy = y - k / (x + effective_dx)
 ```
 
-The pool receives the full input amount, while pricing uses the fee-adjusted amount. This means fees remain in the pool and can increase `k`.
+说明：
 
-Slippage is calculated as:
+- 池子实际收到完整输入 `dx`
+- 定价时使用扣除手续费后的 `effective_dx`
+- 手续费留在池内，因此 `k` 可能随交易增长
+
+滑点计算：
 
 ```text
 abs(execution_price - theoretical_price) / theoretical_price * 100
 ```
 
-Impermanent loss uses the standard 50/50 pool formula:
+无常损失使用标准 50/50 池公式：
 
 ```text
 IL(r) = 2 * sqrt(r) / (1 + r) - 1
 ```
 
-## Configuration
+## 配置文件
 
-Simulations can be described in YAML. The default configuration is [configs/default.yaml](configs/default.yaml).
+默认配置位于 [configs/default.yaml](configs/default.yaml)。
 
-Supported event types:
+当前支持三类事件：
 
-| Event type | Required fields |
+| 事件类型 | 必填字段 |
 | --- | --- |
-| `swap` | `direction` (`x_to_y` or `y_to_x`), `amount_in` |
+| `swap` | `direction` (`x_to_y` 或 `y_to_x`), `amount_in` |
 | `add_liquidity` | `amount_x`, `amount_y` |
 | `remove_liquidity` | `lp_share` |
 
-Example:
+示例：
 
 ```yaml
 initial_reserve_x: 1000.0
@@ -148,15 +157,15 @@ events:
     amount_in: 10.0
 ```
 
-## Running From CLI
+## CLI 运行方式
 
-### One-command demo
+### 一键 demo
 
 ```powershell
 D:\miniconda3\envs\jrrg\python.exe main.py --demo
 ```
 
-Expected output includes:
+预期输出会包含：
 
 ```text
 [simulation] processed_events=9
@@ -165,72 +174,89 @@ Expected output includes:
 [simulation] total_fees=0.900000
 ```
 
-### Config-driven run
+### 指定配置运行
 
 ```powershell
 D:\miniconda3\envs\jrrg\python.exe main.py --config configs/default.yaml
 ```
 
-### Built-in comparison scenarios
+### 运行内置对比场景
 
 ```powershell
 D:\miniconda3\envs\jrrg\python.exe main.py --config configs/default.yaml --scenarios
 ```
 
-This runs the base simulation and then generates scenario outputs under `data/output/scenarios/`.
+该命令会先运行默认配置，再运行手续费率和流动性深度等对比场景，输出到 `data/output/scenarios/`。
 
-### Interactive CLI
+### 交互式菜单
 
 ```powershell
 D:\miniconda3\envs\jrrg\python.exe main.py
 ```
 
-The menu supports pool initialization, swaps, liquidity changes, status inspection, and CSV export.
+交互式菜单支持：
 
-## Web Interface
+- 初始化资金池
+- 执行 swap
+- 添加流动性
+- 移除流动性
+- 查看池子状态
+- 查看用户状态
+- 导出 CSV 日志
 
-Start Streamlit:
+## Web 界面操作
+
+启动：
 
 ```powershell
 D:\miniconda3\envs\jrrg\python.exe -m streamlit run streamlit_app.py
 ```
 
-Open:
+浏览器打开：
 
 ```text
 http://localhost:8501
 ```
 
-The Web UI has three workspaces.
+Web 界面包含三个工作区。
 
-### Default Config
+### 1. Default Config
 
-Runs `configs/default.yaml` with one click. After running, the page shows:
+点击 `Run Default Config`，系统会读取 `configs/default.yaml` 并运行一次完整仿真。
 
-- summary metrics
-- event records
-- user PnL
-- detailed PnL breakdown
-- chart gallery
-- CSV, JSON, Excel, and PDF downloads
+运行后页面会展示：
 
-### Custom Simulation
+- Summary 指标卡
+- Event Records 事件表
+- User PnL 用户收益表
+- Detailed PnL Breakdown 收益拆分
+- Charts 图表区
+- CSV / JSON / Excel / PDF 下载按钮
 
-Use this workspace to edit:
+### 2. Custom Simulation
 
-- initial pool reserves
-- fee rate
-- initial LP owner
-- user balances and LP shares
-- swap / add liquidity / remove liquidity events
+用于手动编辑一组仿真参数。
 
-Saved configs are stored in `data/saved_configs/`.
+可以修改：
 
-### Backtesting
+- 初始 Token X 储备
+- 初始 Token Y 储备
+- 手续费率
+- 初始 LP 归属账户
+- 用户余额和 LP 份额
+- swap / add_liquidity / remove_liquidity 事件
 
-Backtesting imports a historical price series and turns sufficiently large price changes into synthetic swap events.
+也可以保存配置，保存后的 YAML 会进入：
 
-CSV format:
+```text
+data/saved_configs/
+```
+
+### 3. Backtesting
+
+用于历史价格回测。输入是一份价格 CSV，系统会根据相邻价格变化生成模拟交易事件。
+
+CSV 格式：
 
 ```csv
 timestamp,price_y_per_x
@@ -240,27 +266,27 @@ timestamp,price_y_per_x
 3,1.05
 ```
 
-You can either upload a CSV file or select one of the bundled samples:
+你可以上传自己的 CSV，也可以直接选择内置样例：
 
 - `sample_price_history.csv`
 - `stable_market.csv`
 - `trend_market.csv`
 - `volatile_market.csv`
 
-Backtesting parameters:
+回测参数：
 
-| Parameter | Meaning |
+| 参数 | 含义 |
 | --- | --- |
-| Initial X Reserve | Starting Token X reserve |
-| Initial Y Reserve | Starting Token Y reserve |
-| Fee Rate | AMM swap fee |
-| Volatility Threshold | Minimum relative price move required to generate a synthetic trade |
+| Initial X Reserve | 初始 Token X 储备 |
+| Initial Y Reserve | 初始 Token Y 储备 |
+| Fee Rate | AMM 手续费率 |
+| Volatility Threshold | 触发交易的最小相对价格变化 |
 
-Uploaded CSV data is parsed in memory and is not written to a shared repository file, so separate runs do not overwrite each other.
+上传的 CSV 会在内存中解析，不会写入固定仓库文件，因此不同运行之间不会互相覆盖上传数据。
 
-## Outputs
+## 输出文件
 
-Default CLI outputs:
+默认 CLI 输出：
 
 ```text
 data/output/logs/simulation.csv
@@ -269,7 +295,7 @@ data/output/results/*.png
 data/output/results/report.pdf
 ```
 
-Web runs use isolated directories:
+Web 每次运行会生成独立目录：
 
 ```text
 data/output/web_runs/<run_id>/
@@ -280,63 +306,60 @@ data/output/web_runs/<run_id>/
 └── *.png
 ```
 
-Scenario runs use:
+内置场景运行输出：
 
 ```text
 data/output/scenarios/<scenario_name>/
 ```
 
-`data/output/` is ignored by Git because it contains generated artifacts.
+`data/output/` 是运行产物目录，已被 Git 忽略。
 
-## Reports
+## 报告格式
 
-The simulator exports four report formats:
-
-| Format | Content |
+| 格式 | 内容 |
 | --- | --- |
-| CSV | Event-level execution log |
-| JSON | Structured simulation summary |
-| Excel | Multi-sheet workbook with events, summary, PnL, LP metrics, pool depth, parameters, charts |
-| PDF | Presentation-style report with cover page, key metrics, analysis notes, charts, and event appendix |
+| CSV | 事件级执行日志 |
+| JSON | 结构化摘要 |
+| Excel | 多 Sheet 工作簿，包含事件、摘要、PnL、LP 指标、池深度、参数、图表 |
+| PDF | 实验报告，包含封面、关键指标、分析说明、图表和事件附录 |
 
-## Testing
+## 测试
 
-Run the full suite:
+运行完整测试：
 
 ```powershell
 D:\miniconda3\envs\jrrg\python.exe -m pytest -q
 ```
 
-Current expected result:
+当前预期结果：
 
 ```text
 81 passed
 ```
 
-The test suite covers:
+测试覆盖：
 
-- pool math
-- liquidity operations
-- simulator event execution
-- validation
-- analytics metrics
-- scenario generation
-- parameter sweeps
-- visualization
-- CLI demo mode
-- Web support helpers
-- historical backtesting
-- PDF report generation
+- AMM 池子数学
+- swap 与流动性操作
+- 事件调度和仿真流程
+- 输入校验
+- 滑点、无常损失、PnL 等分析指标
+- 实验场景和参数遍历
+- 图表生成
+- CLI demo
+- Web 支撑函数
+- 历史价格回测
+- PDF 报告生成
 
-## Notes And Boundaries
+## 项目边界
 
-- The simulator models one X/Y pool.
-- It supports constant-product AMM behavior only.
-- It is an offline educational and analytical tool.
-- It does not connect to wallets, contracts, exchanges, or live market data.
-- Arbitrage-specific event execution is not currently implemented as a supported event type.
+- 当前模拟单个 X/Y 资金池
+- 当前 AMM 曲线为恒定乘积模型
+- 当前事件类型不包含套利事件
+- 当前不连接钱包、合约、交易所或实时行情
+- 本项目用于教学、实验和分析，不构成任何金融建议
 
-## Requirements
+## 环境要求
 
-- Python 3.10 or newer
-- Dependencies listed in [requirements.txt](requirements.txt)
+- Python 3.10 或更新版本
+- 依赖见 [requirements.txt](requirements.txt)
