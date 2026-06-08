@@ -1,0 +1,51 @@
+# 套利功能演示配置
+# 此配置展示了套利者如何在 AMM 价格偏离市场价格时进行套利交易
+
+initial_reserve_x: 1000.0    # 初始 Token X 储备
+initial_reserve_y: 1000.0    # 初始 Token Y 储备
+fee_rate: 0.003              # 手续费率 0.3%
+initial_lp_owner: protocol   # 未分配 LP 份额的归属账户
+
+users:                       # 用户初始余额与 LP 份额
+  alice:
+    balance_x: 500.0
+    balance_y: 500.0
+    lp_shares: 0.0
+  arbitrageur:               # 套利者账户
+    balance_x: 1000.0
+    balance_y: 1000.0
+    lp_shares: 0.0
+
+events:                      # 按时序执行的事件
+  # 1. Alice 进行大额交易，导致价格偏离
+  - timestamp: 1
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 100.0
+  
+  # 2. 套利者检测到价格偏离（市场价格为 1.0），执行套利
+  - timestamp: 2
+    event_type: arbitrage
+    user_id: arbitrageur
+    market_price: 1.0        # 外部市场价格（Y per X）
+  
+  # 3. 再次检测套利机会（如果还有剩余偏差）
+  - timestamp: 3
+    event_type: arbitrage
+    user_id: arbitrageur
+    market_price: 1.0        # 外部市场价格
+  
+  # 4. 另一个价格冲击场景
+  - timestamp: 4
+    event_type: swap
+    user_id: alice
+    direction: y_to_x
+    amount_in: 150.0
+  
+  # 5. 套利者再次执行套利
+  - timestamp: 5
+    event_type: arbitrage
+    user_id: arbitrageur
+    market_price: 1.0
+    max_amount: 500.0        # 可选：限制最大套利金额
