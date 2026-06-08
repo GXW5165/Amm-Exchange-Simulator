@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -11,11 +10,11 @@ from src.application.backtesting import (
     BacktestConfig,
     PriceData,
     build_backtest_scenario,
+    build_backtest_scenario_from_prices,
     generate_backtest_events,
     load_price_history,
-    run_backtest,
+    load_price_history_from_text,
 )
-from src.application.simulation_runner import SimulationRunner
 
 
 class TestPriceData:
@@ -58,6 +57,38 @@ class TestLoadPriceHistory:
         """测试加载不存在的文件抛出错误。"""
         with pytest.raises(FileNotFoundError):
             load_price_history("nonexistent.csv")
+
+    def test_load_from_text_without_writing_file(self) -> None:
+        """测试从内存文本加载 CSV，供 Web 上传入口使用。"""
+        data = load_price_history_from_text("timestamp,price_y_per_x\n0,1.0\n1,1.2\n")
+
+        assert len(data) == 2
+        assert data[1].timestamp == 1.0
+        assert data[1].price_y_per_x == 1.2
+
+    def test_load_rejects_missing_required_columns(self, tmp_path: Path) -> None:
+        """测试 CSV 缺少必要列时抛出清晰错误。"""
+        csv_file = tmp_path / "prices.csv"
+        csv_file.write_text("time,price\n0,1.0\n")
+
+        with pytest.raises(ValueError, match="timestamp and price_y_per_x"):
+            load_price_history(csv_file)
+
+    def test_load_rejects_non_numeric_values(self, tmp_path: Path) -> None:
+        """测试非数字价格输入会被拒绝。"""
+        csv_file = tmp_path / "prices.csv"
+        csv_file.write_text("timestamp,price_y_per_x\n0,not-a-number\n")
+
+        with pytest.raises(ValueError, match="Invalid numeric value"):
+            load_price_history(csv_file)
+
+    def test_load_rejects_non_positive_prices(self, tmp_path: Path) -> None:
+        """测试零价格和负价格不会进入回测计算。"""
+        csv_file = tmp_path / "prices.csv"
+        csv_file.write_text("timestamp,price_y_per_x\n0,0\n1,1.0\n")
+
+        with pytest.raises(ValueError, match="must be positive"):
+            load_price_history(csv_file)
 
 
 class TestGenerateBacktestEvents:
@@ -164,6 +195,21 @@ class TestBuildBacktestScenario:
         assert "backtester" in scenario["users"]
         assert scenario["users"]["backtester"]["balance_x"] == 1000.0
         assert scenario["users"]["backtester"]["balance_y"] == 1000.0
+
+    def test_build_scenario_from_loaded_prices(self) -> None:
+        """测试 Web 上传场景可直接用内存价格序列构建。"""
+        prices = [
+            PriceData(timestamp=0.0, price_y_per_x=1.0),
+            PriceData(timestamp=1.0, price_y_per_x=1.2),
+        ]
+
+        scenario = build_backtest_scenario_from_prices(
+            prices,
+            BacktestConfig(price_data_path="", volatility_threshold=0.05),
+        )
+
+        assert len(scenario["events"]) == 1
+        assert scenario["price_history"][1]["price"] == 1.2
 
 
 class TestBacktestConfig:

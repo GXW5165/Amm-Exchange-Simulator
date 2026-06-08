@@ -6,9 +6,13 @@ from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import yaml
 
-from src.application.backtesting import BacktestConfig, build_backtest_scenario, load_price_history
+from src.application.backtesting import (
+    BacktestConfig,
+    build_backtest_scenario_from_prices,
+    load_price_history,
+    load_price_history_from_text,
+)
 from src.application.simulation_runner import SimulationRunner
 from src.analytics.report_generator import generate_experiment_report
 from src.infrastructure.config_loader import load_config
@@ -157,11 +161,12 @@ def _show_result(artifacts, *, section_key: str) -> None:
     # ── PDF 报告导出 ──
     try:
         pdf_path = artifacts.summary_path.parent / "report.pdf"
-        generate_experiment_report(
-            result=artifacts.result,
-            plot_dir=str(artifacts.summary_path.parent),
-            output_path=str(pdf_path)
-        )
+        if not pdf_path.exists():
+            generate_experiment_report(
+                result=artifacts.result,
+                plot_dir=str(artifacts.summary_path.parent),
+                output_path=str(pdf_path)
+            )
         dl_cols[3].download_button(
             "📄 Download PDF Report",
             data=_read_bytes(pdf_path),
@@ -292,14 +297,10 @@ def _run_backtesting() -> None:
     # ── CSV文件上传 ──
     uploaded_file = st.file_uploader("📁 Upload Price History CSV", type="csv")
     if uploaded_file is not None:
-        # 保存上传的文件
-        price_data_path = ROOT_DIR / "data" / "uploaded_price_history.csv"
-        with open(price_data_path, "wb") as f:
-            f.write(uploaded_file.getvalue())
-        
-        # 预览数据
+        # 上传数据只在内存中解析，避免不同 Web 会话覆盖同一个仓库内文件。
         try:
-            price_data = load_price_history(price_data_path)
+            price_text = uploaded_file.getvalue().decode("utf-8-sig")
+            price_data = load_price_history_from_text(price_text)
             st.success(f"Loaded {len(price_data)} price data points")
             
             # 显示数据预览
@@ -329,6 +330,11 @@ def _run_backtesting() -> None:
         price_data_path = ROOT_DIR / "data" / selected_sample
         if price_data_path.exists():
             st.info(f"Using sample data: {sample_files[selected_sample]}")
+            try:
+                price_data = load_price_history(price_data_path)
+            except Exception as e:
+                st.error(f"Failed to load sample data: {e}")
+                return
         else:
             st.error(f"Sample file not found: {selected_sample}")
             return
@@ -380,13 +386,13 @@ def _run_backtesting() -> None:
         try:
             # 构建回测场景
             config = BacktestConfig(
-                price_data_path=str(price_data_path),
+                price_data_path="",
                 initial_reserve_x=initial_reserve_x,
                 initial_reserve_y=initial_reserve_y,
                 fee_rate=fee_rate,
                 volatility_threshold=volatility_threshold,
             )
-            scenario = build_backtest_scenario(config)
+            scenario = build_backtest_scenario_from_prices(price_data, config)
             
             # 检查是否生成了交易事件
             if not scenario["events"]:
@@ -603,12 +609,18 @@ def main() -> None:
     if removed:
         st.info(f"Cleaned up {removed} old web run(s); only the latest 5 are kept.")
 
-    tab_default, tab_custom, tab_backtest = st.tabs(["Default Config", "Custom Simulation", "Backtesting"])
-    with tab_default:
+    page = st.radio(
+        "Simulation workspace",
+        ["Default Config", "Custom Simulation", "Backtesting"],
+        horizontal=True,
+        key="active_workspace",
+    )
+
+    if page == "Default Config":
         _run_default_config()
-    with tab_custom:
+    elif page == "Custom Simulation":
         _run_custom_simulation()
-    with tab_backtest:
+    else:
         _run_backtesting()
 
 

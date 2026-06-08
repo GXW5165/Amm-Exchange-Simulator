@@ -7,12 +7,11 @@ from __future__ import annotations
 
 import csv
 from dataclasses import dataclass
+from io import StringIO
 from pathlib import Path
-from typing import Any
+from typing import Any, TextIO
 
 from src.domain.user import User
-from src.simulator.event import Event, EventType
-from src.simulator.scenario_builder import build_events
 
 
 @dataclass
@@ -35,6 +34,39 @@ class BacktestConfig:
     max_trade_size: float = 100.0
 
 
+def _parse_price_history(reader: csv.DictReader) -> list[PriceData]:
+    """把 CSV 行解析为价格序列，并拒绝会破坏回测数学假设的输入。"""
+    required_columns = {"timestamp", "price_y_per_x"}
+    if reader.fieldnames is None or not required_columns.issubset(set(reader.fieldnames)):
+        raise ValueError("Price history CSV must contain timestamp and price_y_per_x columns")
+
+    data: list[PriceData] = []
+    for line_number, row in enumerate(reader, start=2):
+        try:
+            timestamp = float(row["timestamp"])
+            price_y_per_x = float(row["price_y_per_x"])
+        except (TypeError, ValueError) as exc:
+            raise ValueError(f"Invalid numeric value in price history at line {line_number}") from exc
+
+        if price_y_per_x <= 0:
+            raise ValueError(f"price_y_per_x must be positive at line {line_number}")
+
+        data.append(PriceData(timestamp=timestamp, price_y_per_x=price_y_per_x))
+
+    data.sort(key=lambda x: x.timestamp)
+    return data
+
+
+def load_price_history_from_text(csv_text: str) -> list[PriceData]:
+    """从 CSV 文本加载历史价格数据，供 Web 上传等内存输入复用。"""
+    return _parse_price_history(csv.DictReader(StringIO(csv_text)))
+
+
+def load_price_history_from_file(file_obj: TextIO) -> list[PriceData]:
+    """从已打开的文本文件对象加载历史价格数据。"""
+    return _parse_price_history(csv.DictReader(file_obj))
+
+
 def load_price_history(file_path: str | Path) -> list[PriceData]:
     """从CSV文件加载历史价格数据。
 
@@ -52,17 +84,8 @@ def load_price_history(file_path: str | Path) -> list[PriceData]:
     if not path.exists():
         raise FileNotFoundError(f"Price history file not found: {file_path}")
 
-    data: list[PriceData] = []
     with path.open("r", encoding="utf-8") as f:
-        reader = csv.DictReader(f)
-        for row in reader:
-            data.append(PriceData(
-                timestamp=float(row["timestamp"]),
-                price_y_per_x=float(row["price_y_per_x"])
-            ))
-    
-    data.sort(key=lambda x: x.timestamp)
-    return data
+        return load_price_history_from_file(f)
 
 
 def generate_backtest_events(
@@ -90,8 +113,6 @@ def generate_backtest_events(
     
     if len(price_data) < 2:
         return events
-
-    initial_price = price_data[0].price_y_per_x
 
     for i in range(1, len(price_data)):
         current_price = price_data[i].price_y_per_x
@@ -122,16 +143,8 @@ def generate_backtest_events(
     return events
 
 
-def build_backtest_scenario(config: BacktestConfig) -> dict[str, Any]:
-    """构建完整的回测场景配置。
-
-    Args:
-        config: 回测配置
-
-    Returns:
-        完整的场景配置字典
-    """
-    price_data = load_price_history(config.price_data_path)
+def build_backtest_scenario_from_prices(price_data: list[PriceData], config: BacktestConfig) -> dict[str, Any]:
+    """根据已加载的价格序列构建回测场景，避免 Web 上传必须落盘。"""
     events = generate_backtest_events(
         price_data,
         trader_id="backtester",
@@ -154,6 +167,18 @@ def build_backtest_scenario(config: BacktestConfig) -> dict[str, Any]:
         "events": events,
         "price_history": [{"timestamp": p.timestamp, "price": p.price_y_per_x} for p in price_data]
     }
+
+
+def build_backtest_scenario(config: BacktestConfig) -> dict[str, Any]:
+    """构建完整的回测场景配置。
+
+    Args:
+        config: 回测配置
+
+    Returns:
+        完整的场景配置字典
+    """
+    return build_backtest_scenario_from_prices(load_price_history(config.price_data_path), config)
 
 
 def run_backtest(config: BacktestConfig, runner) -> Any:
@@ -179,8 +204,6 @@ def run_backtest(config: BacktestConfig, runner) -> Any:
             lp_shares=data["lp_shares"]
         )
 
-    events = build_events(scenario["events"])
-    
     app_config = AppConfig(
         initial_reserve_x=scenario["initial_reserve_x"],
         initial_reserve_y=scenario["initial_reserve_y"],
