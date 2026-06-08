@@ -1,9 +1,16 @@
 """应用层导出。
 
-提供配置驱动运行、初始化辅助、输入校验和实验场景构造。
+提供配置驱动运行、输入校验、实验场景构造和历史价格回测。
 """
 
-from .initialization import assign_initial_lp_owner
+from .backtesting import (
+    BacktestConfig,
+    build_backtest_scenario,
+    build_backtest_scenario_from_prices,
+    load_price_history,
+    load_price_history_from_text,
+    run_backtest,
+)
 from .parameter_sweep import (
     build_comparison_table,
     build_scenario_name,
@@ -19,7 +26,9 @@ __all__ = [
     "SimulationArtifacts",
     "SimulationRunner",
     "ValidationResult",
-    "assign_initial_lp_owner",
+    "BacktestConfig",
+    "build_backtest_scenario",
+    "build_backtest_scenario_from_prices",
     "build_comparison_table",
     "build_fee_rate_scenarios",
     "build_large_trade_shock_scenario",
@@ -27,6 +36,9 @@ __all__ = [
     "build_scenario_name",
     "export_comparison_table_csv",
     "generate_param_grid",
+    "load_price_history",
+    "load_price_history_from_text",
+    "run_backtest",
     "run_parameter_sweep",
     "validate_simulation_input",
 ]

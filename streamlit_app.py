@@ -1,12 +1,20 @@
 from __future__ import annotations
 
+
+
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
-import yaml
 
+from src.application.backtesting import (
+    BacktestConfig,
+    build_backtest_scenario_from_prices,
+    load_price_history,
+    load_price_history_from_text,
+)
 from src.application.simulation_runner import SimulationRunner
+from src.analytics.report_generator import generate_experiment_report
 from src.infrastructure.config_loader import load_config
 from src.web.app_support import (
     build_config_from_runtime_input,
@@ -78,6 +86,10 @@ def _show_result(artifacts, *, section_key: str) -> None:
     )
     cols[3].metric("Time Span (days)", f"{summary.time_span_days:.4f}")
 
+    if artifacts.warnings:
+        for warning in artifacts.warnings:
+            st.warning(warning)
+
     # ── 事件表 ──
     st.subheader("Event Records")
     records_df = pd.DataFrame([r.to_csv_row() for r in artifacts.result.records])
@@ -116,7 +128,7 @@ def _show_result(artifacts, *, section_key: str) -> None:
 
     # ── 下载 ──
     st.subheader("Downloads")
-    dl_cols = st.columns(3)
+    dl_cols = st.columns(4)
     dl_cols[0].download_button(
         "📥 Download CSV Log",
         data=_read_bytes(artifacts.csv_path),
@@ -131,7 +143,7 @@ def _show_result(artifacts, *, section_key: str) -> None:
         mime="application/json",
         key=f"{section_key}_dl_json",
     )
-    # ── 新增：Excel 导出 ──
+    # ── Excel 导出 ──
     try:
         from src.infrastructure.excel_exporter import export_to_excel
         xlsx_path = artifacts.csv_path.with_suffix(".xlsx")
@@ -143,13 +155,27 @@ def _show_result(artifacts, *, section_key: str) -> None:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key=f"{section_key}_dl_xlsx",
         )
-    except Exception as exc:
-        artifacts.warnings.append(f"Excel export failed: {exc}")
+    except Exception:
         dl_cols[2].caption("Excel export unavailable")
-
-    if artifacts.warnings:
-        for warning in artifacts.warnings:
-            st.warning(warning)
+    
+    # ── PDF 报告导出 ──
+    try:
+        pdf_path = artifacts.summary_path.parent / "report.pdf"
+        if not pdf_path.exists():
+            generate_experiment_report(
+                result=artifacts.result,
+                plot_dir=str(artifacts.summary_path.parent),
+                output_path=str(pdf_path)
+            )
+        dl_cols[3].download_button(
+            "📄 Download PDF Report",
+            data=_read_bytes(pdf_path),
+            file_name=pdf_path.name,
+            mime="application/pdf",
+            key=f"{section_key}_dl_pdf",
+        )
+    except Exception as e:
+        dl_cols[3].caption(f"PDF export unavailable: {str(e)[:30]}...")
 
     # ── 图表 2×3 网格 ──
     if artifacts.plot_paths:
@@ -251,6 +277,7 @@ def _render_save_load_ui(
 def _run_default_config() -> None:
     """默认配置运行页签。"""
     st.subheader("Default Config Simulation")
+    st.caption("Load the built-in default.yaml and run a one-click simulation.")
 
     if st.button("▶ Run Default Config", width="stretch", type="primary"):
         config = load_config(DEFAULT_CONFIG_PATH)
@@ -262,9 +289,154 @@ def _run_default_config() -> None:
         _show_result(artifacts, section_key="default")
 
 
+def _run_backtesting() -> None:
+    """历史价格回测页签：支持CSV数据导入和回测分析。"""
+    st.subheader("Historical Price Backtesting")
+    st.caption("Import historical price data from CSV and run backtesting simulation.")
+    
+    # ── CSV文件上传 ──
+    uploaded_file = st.file_uploader("📁 Upload Price History CSV", type="csv")
+    if uploaded_file is not None:
+        # 上传数据只在内存中解析，避免不同 Web 会话覆盖同一个仓库内文件。
+        try:
+            price_text = uploaded_file.getvalue().decode("utf-8-sig")
+            price_data = load_price_history_from_text(price_text)
+            st.success(f"Loaded {len(price_data)} price data points")
+            
+            # 显示数据预览
+            preview_df = pd.DataFrame([{"timestamp": p.timestamp, "price_y_per_x": p.price_y_per_x} for p in price_data[:10]])
+            st.dataframe(preview_df, use_container_width=True, hide_index=True)
+            if len(price_data) > 10:
+                st.caption(f"... and {len(price_data) - 10} more rows")
+        except Exception as e:
+            st.error(f"Failed to load price data: {e}")
+            return
+    else:
+        # 选择示例数据
+        sample_files = {
+            "sample_price_history.csv": "Sample Data (Mixed trend)",
+            "stable_market.csv": "Stable Market (Low volatility)",
+            "trend_market.csv": "Trend Market (Upward trend)",
+            "volatile_market.csv": "Volatile Market (High volatility)",
+        }
+        
+        selected_sample = st.selectbox(
+            "Select Sample Data",
+            options=list(sample_files.keys()),
+            format_func=lambda x: sample_files[x],
+            key="backtest_sample_select",
+        )
+        
+        price_data_path = ROOT_DIR / "data" / selected_sample
+        if price_data_path.exists():
+            st.info(f"Using sample data: {sample_files[selected_sample]}")
+            try:
+                price_data = load_price_history(price_data_path)
+            except Exception as e:
+                st.error(f"Failed to load sample data: {e}")
+                return
+        else:
+            st.error(f"Sample file not found: {selected_sample}")
+            return
+    
+    # ── 回测参数 ──
+    st.subheader("Backtest Parameters")
+    col1, col2, col3, col4 = st.columns(4)
+    
+    with col1:
+        initial_reserve_x = st.number_input(
+            "Initial X Reserve",
+            min_value=0.0,
+            value=1000.0,
+            step=10.0,
+            key="backtest_reserve_x",
+        )
+    with col2:
+        initial_reserve_y = st.number_input(
+            "Initial Y Reserve",
+            min_value=0.0,
+            value=1000.0,
+            step=10.0,
+            key="backtest_reserve_y",
+        )
+    with col3:
+        fee_rate = st.number_input(
+            "Fee Rate",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.003,
+            step=0.001,
+            format="%.6f",
+            key="backtest_fee_rate",
+        )
+    with col4:
+        volatility_threshold = st.number_input(
+            "Volatility Threshold",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.005,
+            step=0.001,
+            format="%.6f",
+            key="backtest_volatility",
+            help="Minimum price change percentage to trigger a trade. Lower values = more trades.\n\nRecommended settings:\n- Stable market (stable_market.csv): 0.001-0.005\n- Trend market (trend_market.csv): 0.01-0.02\n- Volatile market (volatile_market.csv): 0.05-0.10",
+        )
+    
+    # ── 运行回测 ──
+    if st.button("▶ Run Backtest", type="primary", width="stretch"):
+        try:
+            # 构建回测场景
+            config = BacktestConfig(
+                price_data_path="",
+                initial_reserve_x=initial_reserve_x,
+                initial_reserve_y=initial_reserve_y,
+                fee_rate=fee_rate,
+                volatility_threshold=volatility_threshold,
+            )
+            scenario = build_backtest_scenario_from_prices(price_data, config)
+            
+            # 检查是否生成了交易事件
+            if not scenario["events"]:
+                st.warning("No trade events generated. Try adjusting the volatility threshold.")
+                return
+            
+            # 构建配置并运行
+            users = normalize_user_rows([
+                {"user_id": "backtester", "balance_x": 1000.0, "balance_y": 1000.0, "lp_shares": 0.0}
+            ])
+            
+            # 直接使用scenario中的事件（已经包含正确的user_id）
+            runtime_config = build_config_from_runtime_input(
+                initial_reserve_x=initial_reserve_x,
+                initial_reserve_y=initial_reserve_y,
+                fee_rate=fee_rate,
+                initial_lp_owner="protocol",
+                users=users,
+                events=scenario["events"],
+            )
+            
+            runner = SimulationRunner(ROOT_DIR)
+            artifacts = runner.run_from_config(runtime_config)
+            st.session_state["backtest_artifacts"] = artifacts
+            
+        except Exception as e:
+            st.exception(e)
+            return
+    
+    # ── 结果展示 ──
+    artifacts = st.session_state.get("backtest_artifacts")
+    if artifacts is not None:
+        _show_result(artifacts, section_key="backtest")
+
+
 def _run_custom_simulation() -> None:
     """自定义参数运行页签：支持编辑参数、保存/加载配置、运行仿真。"""
     st.subheader("Custom Simulation")
+    st.caption(
+        "Edit pool parameters, users, and events below. "
+        "▶ **Add users** by typing in the empty row at the bottom of the user table. "
+        "▶ **Delete rows** via right-click on a row number. "
+        "▶ **Save** your config for later reuse."
+    )
 
     # ── 池参数 ──
     default_config = load_config(DEFAULT_CONFIG_PATH)
@@ -353,7 +525,7 @@ def _run_custom_simulation() -> None:
         column_config={
             "event_type": st.column_config.SelectboxColumn(
                 "event_type",
-                options=["swap", "add_liquidity", "remove_liquidity"],
+                options=["swap", "add_liquidity", "remove_liquidity", "arbitrage"],
                 width="medium",
             ),
             "direction": st.column_config.SelectboxColumn(
@@ -365,7 +537,7 @@ def _run_custom_simulation() -> None:
     )
 
     # ── 保存 / 加载配置 ──
-    with st.expander("💾 Save / Load Config", expanded=False):
+    with st.expander("Save / Load Config", expanded=False):
         _render_save_load_ui(
             section_key="custom",
             initial_reserve_x=initial_reserve_x,
@@ -431,23 +603,25 @@ def main() -> None:
         layout="wide",
     )
     st.title("📈 AMM Exchange Simulator")
+    st.caption("Constant-product AMM simulation — interactive web interface")
 
     removed = cleanup_old_web_runs(keep=5)
     if removed:
-        st.sidebar.caption(f"Cleaned up {removed} old web run(s); only the latest 5 are kept.")
+        st.info(f"Cleaned up {removed} old web run(s); only the latest 5 are kept.")
 
-    selected_view = st.radio(
-        "Simulation mode",
-        ["Default Config", "Custom Simulation"],
+    page = st.radio(
+        "Simulation workspace",
+        ["Default Config", "Custom Simulation", "Backtesting"],
         horizontal=True,
-        label_visibility="collapsed",
-        key="active_view",
+        key="active_workspace",
     )
 
-    if selected_view == "Default Config":
+    if page == "Default Config":
         _run_default_config()
-    else:
+    elif page == "Custom Simulation":
         _run_custom_simulation()
+    else:
+        _run_backtesting()
 
 
 if __name__ == "__main__":
