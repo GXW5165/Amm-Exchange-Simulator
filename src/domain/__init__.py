@@ -5,6 +5,7 @@
 
 from .exceptions import AMMError, InsufficientBalanceError, InsufficientLiquidityError, InvalidEventError, PoolNotInitializedError
 from .pool import Pool
+from .pricing import calculate_slippage_pct
 from .user import User
 
 __all__ = [
@@ -14,5 +15,6 @@ __all__ = [
     "InvalidEventError",
     "PoolNotInitializedError",
     "Pool",
+    "calculate_slippage_pct",
     "User",
 ]

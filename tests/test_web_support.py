@@ -9,6 +9,7 @@ from src.web.app_support import (
     load_saved_config,
     normalize_event_rows,
     normalize_user_rows,
+    sanitize_saved_config_name,
     save_config_to_yaml,
     validate_runtime_input,
 )
@@ -76,6 +77,16 @@ def test_saved_config_lifecycle_round_trips_yaml(tmp_path: Path) -> None:
     assert loaded["events"][0]["amount_in"] == 2.0
     assert delete_saved_config("myconfig", tmp_path.as_posix()) is True
     assert load_saved_config("myconfig", tmp_path.as_posix()) is None
+
+
+def test_saved_config_names_are_sanitized_for_load_and_delete(tmp_path: Path) -> None:
+    outside = tmp_path.parent / "escape.yaml"
+    outside.write_text("sentinel: true", encoding="utf-8")
+
+    assert sanitize_saved_config_name("../escape") == "..escape"
+    assert load_saved_config("../escape", tmp_path.as_posix()) is None
+    assert delete_saved_config("../escape", tmp_path.as_posix()) is False
+    assert outside.exists()
 
 
 def test_cleanup_old_web_runs_keeps_newest_directories(tmp_path: Path) -> None:

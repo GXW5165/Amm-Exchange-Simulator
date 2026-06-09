@@ -16,3 +16,23 @@ from .record import EventRecord
 from .report import SimulationSummary, summarize_records
 from .report_generator import PDFReportGenerator, generate_experiment_report
 from .slippage import average_slippage_pct, calculate_slippage_pct
+
+__all__ = [
+    "EventRecord",
+    "LpMetrics",
+    "PDFReportGenerator",
+    "PoolDepthPoint",
+    "SimulationSummary",
+    "UserPnL",
+    "average_slippage_pct",
+    "calculate_slippage_pct",
+    "compute_lp_metrics",
+    "compute_max_trade_at_2pct",
+    "compute_max_trade_size_for_slippage",
+    "compute_pool_depth_curve",
+    "generate_experiment_report",
+    "impermanent_loss_from_price_ratio",
+    "impermanent_loss_pct",
+    "summarize_records",
+    "summarize_user_pnl",
+]

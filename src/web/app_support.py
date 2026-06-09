@@ -166,6 +166,16 @@ def cleanup_old_web_runs(output_root: str = "data/output/web_runs", keep: int = 
     return removed
 
 
+def sanitize_saved_config_name(name: str) -> str:
+    """Return the filesystem-safe saved config stem used by Web config helpers."""
+    return "".join(c for c in name if c.isalnum() or c in "._-") or "saved"
+
+
+def _saved_config_path(name: str, output_dir: str) -> Path:
+    """Build a saved-config path from a user-facing name without preserving path separators."""
+    return Path(output_dir) / f"{sanitize_saved_config_name(name)}.yaml"
+
+
 def save_config_to_yaml(
     *,
     name: str,
@@ -182,8 +192,7 @@ def save_config_to_yaml(
 
     base = Path(output_dir)
     base.mkdir(parents=True, exist_ok=True)
-    safe_name = "".join(c for c in name if c.isalnum() or c in "._-") or "saved"
-    path = base / f"{safe_name}.yaml"
+    path = _saved_config_path(name, output_dir)
 
     data: dict[str, Any] = {
         "initial_reserve_x": initial_reserve_x,
@@ -223,7 +232,7 @@ def load_saved_config(
     """加载已保存的配置，返回原始字典；不存在时返回 None。"""
     import yaml
 
-    path = Path(output_dir) / f"{name}.yaml"
+    path = _saved_config_path(name, output_dir)
     if not path.exists():
         return None
     return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
@@ -234,7 +243,7 @@ def delete_saved_config(
     output_dir: str = "data/saved_configs",
 ) -> bool:
     """删除已保存的配置；成功返回 True。"""
-    path = Path(output_dir) / f"{name}.yaml"
+    path = _saved_config_path(name, output_dir)
     if path.exists():
         path.unlink()
         return True

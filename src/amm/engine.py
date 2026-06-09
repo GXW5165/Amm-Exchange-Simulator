@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from src.analytics.slippage import calculate_slippage_pct
 from src.domain.exceptions import InsufficientBalanceError
 from src.domain.pool import Pool
+from src.domain.pricing import calculate_slippage_pct
 
 
 @dataclass(frozen=True)
