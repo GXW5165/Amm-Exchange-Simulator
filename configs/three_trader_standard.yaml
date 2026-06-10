@@ -1,0 +1,72 @@
+# 标准三交易者实验配置
+# 覆盖方向性交易、流动性提供/撤出和外部价格套利，适合课程展示与回归验证。
+
+initial_reserve_x: 1500.0
+initial_reserve_y: 1500.0
+fee_rate: 0.003
+initial_lp_owner: protocol
+log_path: data/output/three_trader_standard/simulation.csv
+summary_path: data/output/three_trader_standard/summary.json
+plot_dir: data/output/three_trader_standard/plots
+
+users:
+  alice:
+    balance_x: 800.0
+    balance_y: 500.0
+    lp_shares: 0.0
+  bob:
+    balance_x: 600.0
+    balance_y: 900.0
+    lp_shares: 0.0
+  carol:
+    balance_x: 700.0
+    balance_y: 700.0
+    lp_shares: 0.0
+
+events:
+  - timestamp: 1
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 120.0
+
+  - timestamp: 2
+    event_type: add_liquidity
+    user_id: bob
+    amount_x: 180.0
+    amount_y: 180.0
+
+  - timestamp: 4
+    event_type: swap
+    user_id: carol
+    direction: y_to_x
+    amount_in: 90.0
+
+  - timestamp: 6
+    event_type: arbitrage
+    user_id: carol
+    market_price: 1.02
+    max_amount: 200.0
+
+  - timestamp: 8
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 75.0
+
+  - timestamp: 12
+    event_type: remove_liquidity
+    user_id: bob
+    lp_share: 40.0
+
+  - timestamp: 18
+    event_type: swap
+    user_id: bob
+    direction: y_to_x
+    amount_in: 110.0
+
+  - timestamp: 24
+    event_type: arbitrage
+    user_id: carol
+    market_price: 0.98
+    max_amount: 150.0

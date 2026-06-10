@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from src.infrastructure.config_loader import load_config
-from src.interface.cli import main
+from src.interface.cli import AMMCLI, main
 
 
 def test_non_interactive_config_demo_runs_and_exports(tmp_path: Path, capsys) -> None:
@@ -58,3 +58,14 @@ def test_runner_does_not_mutate_config_users(tmp_path: Path) -> None:
     assert config.users["bob"].lp_shares == initial_bob_lp
     assert first.result.summary.total_events == second.result.summary.total_events
     assert first.result.summary.total_fees == second.result.summary.total_fees
+
+
+def test_interactive_cli_default_run_keeps_final_state_available() -> None:
+    cli = AMMCLI()
+
+    cli.run_default_simulation()
+
+    assert cli.pool is not None
+    assert cli.engine.records
+    assert len(cli.engine.records) == 9
+    assert cli.pool.reserve_x == cli.engine.records[-1].reserve_x_after

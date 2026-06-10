@@ -186,6 +186,10 @@ class AMMCLI:
         self.users = config.users
         self.engine = SimulatorEngine(self.pool, self.users)
         artifacts = self.runner.run_from_config(config)
+        self.pool = artifacts.result.pool
+        self.users = artifacts.result.users
+        self.engine = SimulatorEngine(self.pool, self.users)
+        self.engine.records = list(artifacts.result.records)
         summary = artifacts.result.summary
 
         self._print_section("Simulation Result")
@@ -193,7 +197,8 @@ class AMMCLI:
         # 事件与费用
         print(f"  {LABEL}Events{_RESET}       {VALUE}{summary.total_events}{_RESET}  "
               f"({INFO}swap{_RESET}: {summary.swap_events},  "
-              f"{INFO}liquidity{_RESET}: {summary.liquidity_events})")
+              f"{INFO}liquidity{_RESET}: {summary.liquidity_events},  "
+              f"{INFO}arbitrage{_RESET}: {summary.arbitrage_events})")
         print(f"  {LABEL}Total Fees{_RESET}   {VALUE}{summary.total_fees:.6f}{_RESET}  "
               f"({LABEL}in Y{_RESET}: {VALUE}{summary.total_fees_in_y:.6f}{_RESET})")
 
@@ -413,6 +418,7 @@ def _print_artifact_summary(artifacts, *, label: str = "simulation") -> None:
     print(f"[{label}] processed_events={summary.total_events}")
     print(f"[{label}] swap_events={summary.swap_events}")
     print(f"[{label}] liquidity_events={summary.liquidity_events}")
+    print(f"[{label}] arbitrage_events={summary.arbitrage_events}")
     print(f"[{label}] total_fees={summary.total_fees:.6f}")
     print(f"[{label}] total_fees_in_y={summary.total_fees_in_y:.6f}")
     print(f"[{label}] average_slippage_pct={_p(summary.average_slippage_pct)}")

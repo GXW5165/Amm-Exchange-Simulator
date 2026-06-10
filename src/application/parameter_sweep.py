@@ -27,6 +27,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from src.application.simulation_runner import SimulationArtifacts, SimulationRunner
     from src.infrastructure.config_loader import AppConfig
+    from src.simulator.result import SimulationResult
 
 
 def generate_param_grid(**kwargs) -> list[dict[str, Any]]:
@@ -107,8 +108,6 @@ def run_parameter_sweep(
     if not param_grid:
         return {}
 
-    from src.infrastructure.config_loader import AppConfig  # 延迟导入避免循环
-
     results: dict[str, SimulationArtifacts] = {}
     for params in param_grid:
         name = build_scenario_name(params)
@@ -171,6 +170,7 @@ def build_comparison_table(
                 "total_events": summary.total_events,
                 "swap_events": summary.swap_events,
                 "liquidity_events": summary.liquidity_events,
+                "arbitrage_events": summary.arbitrage_events,
                 "total_fees": f"{summary.total_fees:.6f}",
                 "total_fees_in_y": f"{summary.total_fees_in_y:.6f}",
                 "avg_slippage_pct": (

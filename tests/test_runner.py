@@ -26,6 +26,23 @@ def test_simulation_runner_exports_all_artifacts(tmp_path: Path) -> None:
     assert all(path.exists() for path in artifacts.plot_paths.values())
 
 
+def test_three_trader_standard_config_runs(tmp_path: Path) -> None:
+    config = load_config(Path("configs/three_trader_standard.yaml"))
+    config.log_path = "three_trader/simulation.csv"
+    config.summary_path = "three_trader/summary.json"
+    config.plot_dir = "three_trader/plots"
+
+    artifacts = SimulationRunner(tmp_path).run_from_config(config)
+    summary = artifacts.result.summary
+
+    assert set(artifacts.result.initial_users) >= {"alice", "bob", "carol", "protocol"}
+    assert summary.total_events == 8
+    assert summary.swap_events == 4
+    assert summary.liquidity_events == 2
+    assert summary.arbitrage_events == 2
+    assert artifacts.csv_path.exists()
+
+
 def test_runner_assigns_unowned_initial_lp_to_protocol(tmp_path: Path) -> None:
     config = AppConfig(
         initial_reserve_x=1000.0,

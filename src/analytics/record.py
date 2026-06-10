@@ -44,6 +44,9 @@ class EventRecord:
     lp_shares_delta: Optional[float] = None
     effective_amount_in: Optional[float] = None
     theoretical_price: Optional[float] = None
+    market_price: Optional[float] = None
+    arbitrage_profit: Optional[float] = None
+    arbitrage_executed: Optional[bool] = None
     spot_price_before: Optional[float] = None
     invariant_before: Optional[float] = None
     invariant_after: Optional[float] = None
@@ -80,6 +83,9 @@ class EventRecord:
             "lp_shares_delta": self.lp_shares_delta,
             "effective_amount_in": self.effective_amount_in,
             "theoretical_price": self.theoretical_price,
+            "market_price": self.market_price,
+            "arbitrage_profit": self.arbitrage_profit,
+            "arbitrage_executed": self.arbitrage_executed,
             "spot_price_before": self.spot_price_before,
             "invariant_before": self.invariant_before,
             "invariant_after": self.invariant_after,

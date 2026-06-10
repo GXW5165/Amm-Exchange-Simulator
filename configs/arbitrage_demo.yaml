@@ -1,0 +1,46 @@
+# 套利功能演示配置
+# 展示 AMM 池内价格偏离外部市场价格后，套利者如何推动价格回归。
+
+initial_reserve_x: 1000.0
+initial_reserve_y: 1000.0
+fee_rate: 0.003
+initial_lp_owner: protocol
+
+users:
+  alice:
+    balance_x: 500.0
+    balance_y: 500.0
+    lp_shares: 0.0
+  arbitrageur:
+    balance_x: 1000.0
+    balance_y: 1000.0
+    lp_shares: 0.0
+
+events:
+  - timestamp: 1
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 100.0
+
+  - timestamp: 2
+    event_type: arbitrage
+    user_id: arbitrageur
+    market_price: 1.0
+
+  - timestamp: 3
+    event_type: arbitrage
+    user_id: arbitrageur
+    market_price: 1.0
+
+  - timestamp: 4
+    event_type: swap
+    user_id: alice
+    direction: y_to_x
+    amount_in: 150.0
+
+  - timestamp: 5
+    event_type: arbitrage
+    user_id: arbitrageur
+    market_price: 1.0
+    max_amount: 500.0

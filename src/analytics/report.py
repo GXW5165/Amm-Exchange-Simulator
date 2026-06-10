@@ -24,6 +24,7 @@ class SimulationSummary:
     total_events: int
     swap_events: int
     liquidity_events: int
+    arbitrage_events: int
     total_fees: float
     total_fees_in_y: float
     average_slippage_pct: float | None
@@ -49,19 +50,23 @@ def summarize_records(
     """根据事件记录和初末状态计算汇总指标。"""
     swap_events = 0
     liquidity_events = 0
+    arbitrage_events = 0
     total_fees = 0.0
     total_fees_in_y = 0.0
     slippage_values: list[float | None] = []
+    fee_events = {"swap", "arbitrage"}
 
     for record in records:
         if record.event_type == "swap":
             swap_events += 1
         elif record.event_type in {"add_liquidity", "remove_liquidity"}:
             liquidity_events += 1
+        elif record.event_type == "arbitrage":
+            arbitrage_events += 1
 
         fee = float(record.fee or 0.0)
         total_fees += fee
-        if record.event_type == "swap" and fee:
+        if record.event_type in fee_events and fee:
             # 不同交易方向的 fee 单位不同；汇总时统一折算成 Token Y，便于和总价值/PnL 比较。
             if record.direction == "x_to_y":
                 price = record.spot_price_before or record.spot_price or current_pool.spot_price
@@ -110,6 +115,7 @@ def summarize_records(
         total_events=len(records),
         swap_events=swap_events,
         liquidity_events=liquidity_events,
+        arbitrage_events=arbitrage_events,
         total_fees=total_fees,
         total_fees_in_y=total_fees_in_y,
         average_slippage_pct=average_slippage_pct(slippage_values),

@@ -29,10 +29,14 @@ def test_normalize_event_rows_filters_and_sorts_events() -> None:
     events = normalize_event_rows([
         {"timestamp": 2, "event_type": "add_liquidity", "user_id": "alice", "amount_x": 5.0, "amount_y": 5.0},
         {"timestamp": 1, "event_type": "swap", "user_id": "alice", "direction": "x_to_y", "amount_in": 2.0},
+        {"timestamp": 3, "event_type": "arbitrage", "user_id": "alice", "market_price": 0.95, "max_amount": 50.0},
     ])
 
     assert events[0]["event_type"] == "swap"
     assert events[1]["event_type"] == "add_liquidity"
+    assert events[2]["event_type"] == "arbitrage"
+    assert events[2]["market_price"] == 0.95
+    assert events[2]["max_amount"] == 50.0
 
 
 def test_build_config_from_runtime_input_uses_web_run_paths() -> None:

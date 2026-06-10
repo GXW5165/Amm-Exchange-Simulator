@@ -70,7 +70,7 @@ def compute_fee_income_per_user(
                     lp_shares_by_user.pop(record.user_id, None)
             continue
 
-        if record.event_type != "swap":
+        if record.event_type not in {"swap", "arbitrage"}:
             continue
         fee = float(record.fee or 0.0)
         if fee <= 0.0:

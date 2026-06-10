@@ -124,6 +124,10 @@ def validate_events(events: list[dict[str, Any]], users: dict[str, User] | None 
             _require_positive_number(result, event, "amount_y", prefix)
         elif event_type == "remove_liquidity":
             _require_positive_number(result, event, "lp_share", prefix)
+        elif event_type == "arbitrage":
+            _require_positive_number(result, event, "market_price", prefix)
+            if event.get("max_amount") is not None:
+                _require_positive_number(result, event, "max_amount", prefix)
         else:
             result.add(f"{prefix}: unsupported event_type {event_type!r}")
 

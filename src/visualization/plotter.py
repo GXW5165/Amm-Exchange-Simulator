@@ -40,17 +40,17 @@ def plot_pool_price(records, output_dir: str | Path) -> Path | None:
 
 
 def plot_slippage(records, output_dir: str | Path) -> Path | None:
-    """绘制所有 swap 事件的滑点变化图。"""
-    swap_records = [record for record in records if record.slippage_pct is not None]
-    if not swap_records:
+    """绘制所有交易事件的滑点变化图。"""
+    trade_records = [record for record in records if record.slippage_pct is not None]
+    if not trade_records:
         return None
 
-    timestamps = [record.timestamp for record in swap_records]
-    slippage = [record.slippage_pct for record in swap_records]
+    timestamps = [record.timestamp for record in trade_records]
+    slippage = [record.slippage_pct for record in trade_records]
 
     plt.figure(figsize=(8, 4.5))
     plt.plot(timestamps, slippage, marker="o", color="#b45309", linewidth=2)
-    plt.title("Swap Slippage")
+    plt.title("Trade Slippage")
     plt.xlabel("Timestamp")
     plt.ylabel("Slippage (%)")
     plt.grid(alpha=0.25)
@@ -79,14 +79,14 @@ def plot_pool_reserves(records, output_dir: str | Path) -> Path | None:
 
 def plot_cumulative_fees(records, output_dir: str | Path) -> Path | None:
     """绘制累计手续费图，统一折算为 Token Y 计价。"""
-    swap_records = [record for record in records if record.event_type == "swap"]
-    if not swap_records:
+    fee_records = [record for record in records if record.event_type in {"swap", "arbitrage"}]
+    if not fee_records:
         return None
 
     timestamps = []
     cumulative = []
     total = 0.0
-    for record in swap_records:
+    for record in fee_records:
         fee = float(record.fee or 0.0)
         if record.direction == "x_to_y":
             total += fee * float(record.spot_price_before or record.spot_price or 0.0)
@@ -279,19 +279,19 @@ def plot_slippage_volume(
     便于观察大额交易与滑点之间的非线性关系。
 
     Returns:
-        图表文件路径；无有效 swap 事件时返回 None。
+        图表文件路径；无有效交易事件时返回 None。
     """
-    swap_data = [
+    trade_data = [
         (r.amount_in, r.slippage_pct, r.direction)
         for r in records
-        if r.event_type == "swap" and r.slippage_pct is not None and r.amount_in is not None
+        if r.event_type in {"swap", "arbitrage"} and r.slippage_pct is not None and r.amount_in is not None
     ]
-    if not swap_data:
+    if not trade_data:
         return None
 
     # 按方向分两组
-    x_to_y_data = [(amt, slip) for amt, slip, d in swap_data if d == "x_to_y"]
-    y_to_x_data = [(amt, slip) for amt, slip, d in swap_data if d == "y_to_x"]
+    x_to_y_data = [(amt, slip) for amt, slip, d in trade_data if d == "x_to_y"]
+    y_to_x_data = [(amt, slip) for amt, slip, d in trade_data if d == "y_to_x"]
 
     fig, ax = plt.subplots(figsize=(8, 5))
 
@@ -322,7 +322,7 @@ def plot_multi_scenario_comparison(
     """绘制多场景关键指标对比的分组柱状图。
 
     对每个场景提取 avg slippage、impermanent loss、total fees (in Y)、
-    final pool value 四个指标，以分组柱状图展示，便于横向比较不同参数配置。
+    final pool value 四个指标，以 2x2 子图展示，避免不同量级挤在同一坐标轴。
 
     Args:
         scenario_results: 场景名称 → SimulationResult 的映射。
@@ -334,7 +334,6 @@ def plot_multi_scenario_comparison(
     if len(scenario_results) < 2:
         return None
 
-    # 提取指标
     metric_names = [
         "Avg Slippage (%)",
         "Imp. Loss (%)",
@@ -343,10 +342,9 @@ def plot_multi_scenario_comparison(
     ]
     scenarios = list(scenario_results.keys())
     num_scenarios = len(scenarios)
-    num_metrics = len(metric_names)
+    colors = plt.cm.Set2(np.linspace(0, 1, max(num_scenarios, 1)))
 
-    # 收集数据矩阵
-    data: list[list[float]] = [[] for _ in range(num_metrics)]
+    data: list[list[float]] = [[], [], [], []]
     for name in scenarios:
         summary = scenario_results[name].summary
         data[0].append(float(summary.average_slippage_pct or 0.0))
@@ -354,29 +352,50 @@ def plot_multi_scenario_comparison(
         data[2].append(float(summary.total_fees_in_y))
         data[3].append(float(summary.final_pool_value_in_y))
 
-    # 分组柱状图
-    x = np.arange(num_metrics)
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    axes = axes.flatten()
     width = 0.8 / num_scenarios
-    colors = plt.cm.Set2(np.linspace(0, 1, max(num_scenarios, 1)))
 
-    fig, ax = plt.subplots(figsize=(10, 5.5))
-    for i, name in enumerate(scenarios):
-        offset = (i - (num_scenarios - 1) / 2) * width
-        bars = ax.bar(
-            x + offset,
-            [data[j][i] for j in range(num_metrics)],
-            width,
-            label=name,
-            color=colors[i],
-            edgecolor="white",
-            linewidth=0.5,
-        )
+    for idx, (metric_name, metric_data) in enumerate(zip(metric_names, data)):
+        ax = axes[idx]
+        x = np.arange(1)
 
-    ax.set_xticks(x)
-    ax.set_xticklabels(metric_names, fontsize=9)
-    ax.set_title("Multi-Scenario Comparison")
-    ax.legend(fontsize=8, loc="upper right")
-    ax.grid(axis="y", alpha=0.25)
+        for scenario_index, name in enumerate(scenarios):
+            offset = (scenario_index - (num_scenarios - 1) / 2) * width
+            ax.bar(
+                x + offset,
+                metric_data[scenario_index],
+                width,
+                label=name,
+                color=colors[scenario_index],
+                edgecolor="white",
+                linewidth=0.5,
+            )
+
+        data_min = min(metric_data)
+        data_max = max(metric_data)
+        if data_max != data_min:
+            margin = (data_max - data_min) * 0.12
+            ax.set_ylim(data_min - margin, data_max + margin)
+        elif data_max > 0:
+            ax.set_ylim(0, data_max * 1.15)
+
+        for scenario_index, value in enumerate(metric_data):
+            offset = (scenario_index - (num_scenarios - 1) / 2) * width
+            ax.text(
+                float(x[0] + offset),
+                value,
+                f"{value:.2f}",
+                ha="center",
+                va="bottom" if value >= 0 else "top",
+                fontsize=8,
+            )
+
+        ax.set_xticks(x)
+        ax.set_xticklabels([metric_name], fontsize=10)
+        ax.set_title(metric_name)
+        ax.legend(fontsize=8)
+        ax.grid(axis="y", alpha=0.25)
 
     return _save_figure(Path(output_dir) / "multi_scenario_comparison.png")
 

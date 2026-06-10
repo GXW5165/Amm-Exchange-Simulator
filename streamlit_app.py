@@ -1,7 +1,6 @@
 from __future__ import annotations
 
-
-
+import base64
 from pathlib import Path
 
 import pandas as pd
@@ -12,6 +11,12 @@ from src.application.backtesting import (
     build_backtest_scenario_from_prices,
     load_price_history,
     load_price_history_from_text,
+)
+from src.application.parameter_sweep import (
+    build_comparison_table,
+    export_comparison_table_csv,
+    generate_param_grid,
+    run_parameter_sweep,
 )
 from src.application.simulation_runner import SimulationRunner
 from src.analytics.report_generator import generate_experiment_report
@@ -33,11 +38,66 @@ from src.web.app_support import (
 
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "default.yaml"
+LOGO_PATH = ROOT_DIR / "logo.jpg"
 
 
 def _read_bytes(path: Path) -> bytes:
     """读取导出文件字节，用于 Streamlit 下载按钮。"""
     return path.read_bytes()
+
+
+def _parse_sweep_values(raw_values: str, *, label: str, max_values: int = 5) -> list[float]:
+    """Parse a comma-separated sweep input into a bounded list of positive floats."""
+    values: list[float] = []
+    for item in raw_values.split(","):
+        text = item.strip()
+        if not text:
+            continue
+        try:
+            value = float(text)
+        except ValueError as exc:
+            raise ValueError(f"{label} contains an invalid number: {text!r}") from exc
+        if value <= 0:
+            raise ValueError(f"{label} values must be positive.")
+        values.append(value)
+
+    if len(values) > max_values:
+        raise ValueError(f"{label} supports at most {max_values} values.")
+    return values
+
+
+def _install_theme_background() -> None:
+    """Use the project logo as a subtle fixed Streamlit background."""
+    if not LOGO_PATH.exists():
+        return
+    encoded = base64.b64encode(LOGO_PATH.read_bytes()).decode("ascii")
+    st.markdown(
+        f"""
+        <style>
+        .stApp {{
+            background-color: #f8fafc;
+        }}
+        .stApp::before {{
+            content: "";
+            position: fixed;
+            inset: 0;
+            background-image: url("data:image/jpeg;base64,{encoded}");
+            background-repeat: no-repeat;
+            background-position: center center;
+            background-size: min(62vw, 760px);
+            opacity: 0.07;
+            pointer-events: none;
+            z-index: 0;
+        }}
+        .stApp > header,
+        .stApp [data-testid="stAppViewContainer"] > .main {{
+            position: relative;
+            z-index: 1;
+        }}
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def _show_result(artifacts, *, section_key: str) -> None:
@@ -46,11 +106,12 @@ def _show_result(artifacts, *, section_key: str) -> None:
 
     # ── 摘要指标 ──
     st.subheader("Summary")
-    cols = st.columns(4)
+    cols = st.columns(5)
     cols[0].metric("Total Events", summary.total_events)
     cols[1].metric("Swap Events", summary.swap_events)
     cols[2].metric("Liquidity Events", summary.liquidity_events)
-    cols[3].metric("Total Fees", f"{summary.total_fees:.6f}")
+    cols[3].metric("Arbitrage Events", summary.arbitrage_events)
+    cols[4].metric("Total Fees", f"{summary.total_fees:.6f}")
 
     cols = st.columns(4)
     cols[0].metric(
@@ -428,6 +489,175 @@ def _run_backtesting() -> None:
         _show_result(artifacts, section_key="backtest")
 
 
+def _run_parameter_sweep() -> None:
+    """批量参数遍历页签：支持单参数遍历、批量执行和可视化对比。"""
+    st.subheader("Parameter Sweep")
+    st.caption("Run multiple simulations with different parameter combinations and compare results.")
+
+    st.subheader("Parameter Grid Configuration")
+    default_config = load_config(DEFAULT_CONFIG_PATH)
+
+    st.caption("Select parameters to sweep across (max 1 parameter allowed):")
+
+    col1, col2 = st.columns(2)
+    max_params = 5
+
+    with col1:
+        st.markdown("**Pool Parameters**")
+
+        fee_rate_enabled = st.checkbox("Enable Fee Rate Sweep", value=True, key="sweep_fee_enabled")
+        fee_rate_text = ""
+        if fee_rate_enabled:
+            fee_rate_text = st.text_input(
+                "Fee Rate Values (comma-separated)",
+                value="0.001, 0.003, 0.01",
+                key="sweep_fee_rate_values",
+            )
+
+        x_reserve_enabled = st.checkbox("Enable X Reserve Sweep", value=False, key="sweep_x_reserve_enabled")
+        x_reserve_text = ""
+        if x_reserve_enabled:
+            x_reserve_text = st.text_input(
+                "X Reserve Values (comma-separated)",
+                value="500, 1000, 2000",
+                key="sweep_x_reserve_values",
+            )
+
+    with col2:
+        st.markdown("**Trading Parameters**")
+
+        y_reserve_enabled = st.checkbox("Enable Y Reserve Sweep", value=False, key="sweep_y_reserve_enabled")
+        y_reserve_text = ""
+        if y_reserve_enabled:
+            y_reserve_text = st.text_input(
+                "Y Reserve Values (comma-separated)",
+                value="500, 1000, 2000",
+                key="sweep_y_reserve_values",
+            )
+
+    selected_count = sum([fee_rate_enabled, x_reserve_enabled, y_reserve_enabled])
+    if selected_count > 1:
+        st.warning(f"⚠️ You have selected {selected_count} parameters. Maximum 1 parameter allowed.")
+        st.caption("Please deselect other parameters before running.")
+
+    st.subheader("Base Configuration")
+    initial_lp_owner = st.text_input(
+        "Initial LP Owner",
+        value=str(default_config.initial_lp_owner or "protocol"),
+        key="sweep_lp_owner",
+    )
+
+    st.subheader("Custom Events")
+    st.caption("Edit trading events that will be applied to all sweep scenarios:")
+    event_rows = st.data_editor(
+        build_default_event_rows(default_config.events),
+        num_rows="dynamic",
+        use_container_width=True,
+        key="sweep_event_editor",
+        column_config={
+            "event_type": st.column_config.SelectboxColumn(
+                "event_type",
+                options=["swap", "add_liquidity", "remove_liquidity", "arbitrage"],
+                width="medium",
+            ),
+            "direction": st.column_config.SelectboxColumn(
+                "direction",
+                options=["x_to_y", "y_to_x"],
+                width="small",
+            ),
+        },
+    )
+
+    if st.button("▶ Run Parameter Sweep", type="primary", width="stretch", disabled=(selected_count > 1)):
+        try:
+            if selected_count > 1:
+                st.error("Maximum 1 parameter allowed for parameter sweep.")
+                return
+
+            param_dict: dict[str, list[float]] = {}
+            if fee_rate_enabled:
+                fee_rates = _parse_sweep_values(fee_rate_text, label="Fee Rate Values", max_values=max_params)
+                if not fee_rates:
+                    st.error("Please enter at least one fee rate value.")
+                    return
+                param_dict["fee_rate"] = fee_rates
+
+            if x_reserve_enabled:
+                x_reserves = _parse_sweep_values(x_reserve_text, label="X Reserve Values", max_values=max_params)
+                if not x_reserves:
+                    st.error("Please enter at least one X reserve value.")
+                    return
+                param_dict["initial_reserve_x"] = x_reserves
+
+            if y_reserve_enabled:
+                y_reserves = _parse_sweep_values(y_reserve_text, label="Y Reserve Values", max_values=max_params)
+                if not y_reserves:
+                    st.error("Please enter at least one Y reserve value.")
+                    return
+                param_dict["initial_reserve_y"] = y_reserves
+
+            if not param_dict:
+                st.error("Please enable at least one parameter sweep.")
+                return
+
+            param_grid = generate_param_grid(**param_dict)
+
+            total_scenarios = len(param_grid)
+            st.info(f"Running {total_scenarios} scenarios...")
+
+            base_config = load_config(DEFAULT_CONFIG_PATH)
+            base_config.initial_lp_owner = initial_lp_owner
+            base_config.events = normalize_event_rows(event_rows)
+
+            runner = SimulationRunner(ROOT_DIR)
+            sweep_output_dir = ROOT_DIR / "data" / "output" / "sweeps" / "web_sweep"
+            with st.spinner(f"Running {total_scenarios} simulations..."):
+                sweep_results = run_parameter_sweep(
+                    base_config=base_config,
+                    param_grid=param_grid,
+                    runner=runner,
+                    output_root=str(sweep_output_dir),
+                )
+
+            st.session_state["sweep_results"] = sweep_results
+            st.session_state["sweep_output_dir"] = str(sweep_output_dir)
+            st.success(f"Completed {len(sweep_results)} simulations!")
+        except Exception as exc:
+            st.exception(exc)
+            return
+
+    sweep_results = st.session_state.get("sweep_results")
+    output_dir = st.session_state.get("sweep_output_dir")
+    if not sweep_results:
+        return
+
+    st.subheader("Sweep Results")
+    comparison = build_comparison_table(sweep_results)
+    comparison_df = pd.DataFrame(comparison)
+    st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+
+    csv_path = Path(output_dir) / "comparison.csv"
+    export_comparison_table_csv(comparison, csv_path)
+    st.download_button(
+        "📥 Download Comparison CSV",
+        data=_read_bytes(csv_path),
+        file_name="sweep_comparison.csv",
+        mime="text/csv",
+        key="sweep_dl_csv",
+    )
+
+    comparison_plot = Path(output_dir) / "multi_scenario_comparison.png"
+    if comparison_plot.exists():
+        st.image(str(comparison_plot), caption="Multi-Scenario Comparison", use_container_width=True)
+    else:
+        st.info("Comparison chart will be generated when there are 2+ scenarios")
+
+    st.subheader("Individual Scenario Details")
+    selected_scenario = st.selectbox("Select scenario to view details", list(sweep_results.keys()))
+    if selected_scenario:
+        _show_result(sweep_results[selected_scenario], section_key=f"sweep_{selected_scenario}")
+
+
 def _run_custom_simulation() -> None:
     """自定义参数运行页签：支持编辑参数、保存/加载配置、运行仿真。"""
     st.subheader("Custom Simulation")
@@ -525,7 +755,7 @@ def _run_custom_simulation() -> None:
         column_config={
             "event_type": st.column_config.SelectboxColumn(
                 "event_type",
-                options=["swap", "add_liquidity", "remove_liquidity"],
+                options=["swap", "add_liquidity", "remove_liquidity", "arbitrage"],
                 width="medium",
             ),
             "direction": st.column_config.SelectboxColumn(
@@ -602,6 +832,7 @@ def main() -> None:
         page_icon="📈",
         layout="wide",
     )
+    _install_theme_background()
     st.title("📈 AMM Exchange Simulator")
     st.caption("Constant-product AMM simulation — interactive web interface")
 
@@ -609,19 +840,17 @@ def main() -> None:
     if removed:
         st.info(f"Cleaned up {removed} old web run(s); only the latest 5 are kept.")
 
-    page = st.radio(
-        "Simulation workspace",
-        ["Default Config", "Custom Simulation", "Backtesting"],
-        horizontal=True,
-        key="active_workspace",
+    tab_default, tab_custom, tab_backtest, tab_sweep = st.tabs(
+        ["Default Config", "Custom Simulation", "Backtesting", "Parameter Sweep"]
     )
-
-    if page == "Default Config":
+    with tab_default:
         _run_default_config()
-    elif page == "Custom Simulation":
+    with tab_custom:
         _run_custom_simulation()
-    else:
+    with tab_backtest:
         _run_backtesting()
+    with tab_sweep:
+        _run_parameter_sweep()
 
 
 if __name__ == "__main__":

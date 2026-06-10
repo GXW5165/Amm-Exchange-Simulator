@@ -38,6 +38,8 @@ def build_default_event_rows(events: list[dict[str, Any]]) -> list[dict[str, Any
                 "amount_x": 0.0,
                 "amount_y": 0.0,
                 "lp_share": 0.0,
+                "market_price": 0.0,
+                "max_amount": 0.0,
             }
         ]
 
@@ -53,6 +55,8 @@ def build_default_event_rows(events: list[dict[str, Any]]) -> list[dict[str, Any
                 "amount_x": float(event.get("amount_x", 0.0) or 0.0),
                 "amount_y": float(event.get("amount_y", 0.0) or 0.0),
                 "lp_share": float(event.get("lp_share", 0.0) or 0.0),
+                "market_price": float(event.get("market_price", 0.0) or 0.0),
+                "max_amount": float(event.get("max_amount", 0.0) or 0.0),
             }
         )
     return rows
@@ -97,6 +101,11 @@ def normalize_event_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             event["amount_y"] = float(row.get("amount_y", 0.0) or 0.0)
         elif event_type == "remove_liquidity":
             event["lp_share"] = float(row.get("lp_share", 0.0) or 0.0)
+        elif event_type == "arbitrage":
+            event["market_price"] = float(row.get("market_price", 0.0) or 0.0)
+            max_amount = float(row.get("max_amount", 0.0) or 0.0)
+            if max_amount > 0.0:
+                event["max_amount"] = max_amount
         else:
             continue
 

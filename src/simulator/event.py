@@ -9,6 +9,7 @@ class EventType(str, Enum):
     SWAP = "swap"
     ADD_LIQUIDITY = "add_liquidity"
     REMOVE_LIQUIDITY = "remove_liquidity"
+    ARBITRAGE = "arbitrage"
 
 
 @dataclass(order=True)

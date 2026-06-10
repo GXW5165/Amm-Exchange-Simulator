@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from src.amm import AMMEngine, LiquidityManager
+from src.amm import AMMEngine, ArbitrageEngine, LiquidityManager
 from src.analytics.record import EventRecord
 from src.domain.exceptions import InsufficientBalanceError, InsufficientLiquidityError, InvalidEventError, PoolNotInitializedError
 from src.domain.pool import Pool
@@ -97,6 +97,8 @@ class SimulatorEngine:
             return self._process_add_liquidity(event, user)
         if event.event_type == EventType.REMOVE_LIQUIDITY:
             return self._process_remove_liquidity(event, user)
+        if event.event_type == EventType.ARBITRAGE:
+            return self._process_arbitrage(event, user)
         raise InvalidEventError(f"Unsupported event type: {event.event_type}")
 
     def _process_swap(self, event: Event, user: User) -> EventRecord:
@@ -242,6 +244,78 @@ class SimulatorEngine:
             invariant_after=self.pool.invariant,
         )
 
+    def _process_arbitrage(self, event: Event, user: User) -> EventRecord:
+        """处理套利事件：先报价和校验余额，再更新池子与套利者钱包。"""
+        market_price = float(event.payload.get("market_price", 0.0))
+        raw_max_amount = event.payload.get("max_amount")
+        max_amount = float(raw_max_amount) if raw_max_amount is not None else None
+
+        reserve_x_before = self.pool.reserve_x
+        reserve_y_before = self.pool.reserve_y
+        invariant_before = self.pool.invariant
+        wallet_x_before = user.balance_x
+        wallet_y_before = user.balance_y
+        lp_shares_before = user.lp_shares
+
+        arbitrage = ArbitrageEngine(self.pool)
+        quote = arbitrage.quote(market_price, max_amount)
+
+        amount_x_delta = 0.0
+        amount_y_delta = 0.0
+        if quote.arbitrage_executed:
+            if quote.direction == "x_to_y":
+                if user.balance_x < quote.amount_in:
+                    raise InsufficientBalanceError("Arbitrageur has insufficient Token X for arbitrage")
+                result = arbitrage.execute_arbitrage(market_price, max_amount)
+                user.balance_x -= result.amount_in
+                user.balance_y += result.amount_out
+                amount_x_delta = -result.amount_in
+                amount_y_delta = result.amount_out
+            elif quote.direction == "y_to_x":
+                if user.balance_y < quote.amount_in:
+                    raise InsufficientBalanceError("Arbitrageur has insufficient Token Y for arbitrage")
+                result = arbitrage.execute_arbitrage(market_price, max_amount)
+                user.balance_y -= result.amount_in
+                user.balance_x += result.amount_out
+                amount_x_delta = result.amount_out
+                amount_y_delta = -result.amount_in
+            else:
+                raise InvalidEventError(f"Unsupported arbitrage direction: {quote.direction}")
+        else:
+            result = quote
+
+        return self._build_record(
+            event=event,
+            user_id=user.user_id,
+            event_type=event.event_type.value,
+            direction=result.direction,
+            amount_in=result.amount_in,
+            amount_out=result.amount_out,
+            fee=result.fee,
+            spot_price=self.pool.spot_price,
+            execution_price=result.execution_price if result.arbitrage_executed else None,
+            slippage_pct=result.slippage_pct,
+            reserve_x_before=reserve_x_before,
+            reserve_y_before=reserve_y_before,
+            wallet_x_before=wallet_x_before,
+            wallet_y_before=wallet_y_before,
+            wallet_x_after=user.balance_x,
+            wallet_y_after=user.balance_y,
+            lp_shares_before=lp_shares_before,
+            lp_shares_after=user.lp_shares,
+            amount_x_delta=amount_x_delta,
+            amount_y_delta=amount_y_delta,
+            lp_shares_delta=0.0,
+            effective_amount_in=result.amount_in - result.fee if result.arbitrage_executed else None,
+            theoretical_price=result.market_price,
+            market_price=result.market_price,
+            arbitrage_profit=result.profit,
+            arbitrage_executed=result.arbitrage_executed,
+            spot_price_before=result.spot_price_before,
+            invariant_before=invariant_before,
+            invariant_after=self.pool.invariant,
+        )
+
     def _build_record(
         self,
         *,
@@ -268,6 +342,9 @@ class SimulatorEngine:
         lp_shares_delta: float | None = None,
         effective_amount_in: float | None = None,
         theoretical_price: float | None = None,
+        market_price: float | None = None,
+        arbitrage_profit: float | None = None,
+        arbitrage_executed: bool | None = None,
         spot_price_before: float | None = None,
         invariant_before: float | None = None,
         invariant_after: float | None = None,
@@ -303,6 +380,9 @@ class SimulatorEngine:
             lp_shares_delta=lp_shares_delta,
             effective_amount_in=effective_amount_in,
             theoretical_price=theoretical_price,
+            market_price=market_price,
+            arbitrage_profit=arbitrage_profit,
+            arbitrage_executed=arbitrage_executed,
             spot_price_before=spot_price_before,
             invariant_before=invariant_before,
             invariant_after=invariant_after,
