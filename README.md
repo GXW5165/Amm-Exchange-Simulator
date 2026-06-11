@@ -333,6 +333,7 @@ timestamp,price_y_per_x
 | Initial Y Reserve | 初始 Token Y 储备 |
 | Fee Rate | AMM 手续费率 |
 | Volatility Threshold | 触发交易的最小相对价格变化 |
+| Max Trade Size | 自动生成单笔回测交易的最大规模 |
 
 上传的 CSV 会在内存中解析，不会写入固定仓库文件，因此不同运行之间不会互相覆盖上传数据。
 
@@ -345,9 +346,11 @@ timestamp,price_y_per_x
 - `Enable Fee Rate Sweep`：在 `Fee Rate Values (comma-separated)` 输入最多 5 个手续费率，例如 `0.001, 0.003, 0.010`
 - `Enable X Reserve Sweep`：在 `X Reserve Values (comma-separated)` 输入最多 5 个初始 X 储备，例如 `500, 1000, 2000`
 - `Enable Y Reserve Sweep`：在 `Y Reserve Values (comma-separated)` 输入最多 5 个初始 Y 储备，例如 `500, 1000, 2000`
-- 基于 `configs/default.yaml` 作为基础配置，并允许编辑 Initial LP Owner
+- 扫参输入支持半角逗号、中文逗号、顿号和分号分隔，例如 `750，1500、3000`
+- 基于 `configs/default.yaml` 作为基础配置，并允许编辑未被 sweep 的基准参数：Base Initial X Reserve、Base Initial Y Reserve、Base Fee Rate 和 Initial LP Owner
+- 如果某个参数正在 sweep，对应基准输入会显示为提示文本，实际取值由上方取值列表控制
 - 在 `Custom Events` 表格中编辑统一应用到所有场景的事件，支持 `swap`、`add_liquidity`、`remove_liquidity` 和 `arbitrage`
-- 批量输出每个场景的 CSV、JSON、图表和摘要
+- 批量输出每个场景的 CSV、JSON、图表、摘要和 PDF 报告
 - 展示 comparison table、四指标多场景对比图和单个场景详情
 
 Web 扫参默认输出目录：
@@ -407,7 +410,7 @@ D:\miniconda3\envs\jrrg\python.exe -m pytest -q
 当前预期结果：
 
 ```text
-94 passed
+103 passed
 ```
 
 测试覆盖：

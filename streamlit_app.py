@@ -385,7 +385,7 @@ def _run_backtesting() -> None:
     
     # ── 回测参数 ──
     st.subheader("Backtest Parameters")
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
     
     with col1:
         initial_reserve_x = st.number_input(
@@ -424,6 +424,16 @@ def _run_backtesting() -> None:
             key="backtest_volatility",
             help="Minimum price change percentage to trigger a trade. Lower values = more trades.\n\nRecommended settings:\n- Stable market (stable_market.csv): 0.001-0.005\n- Trend market (trend_market.csv): 0.01-0.02\n- Volatile market (volatile_market.csv): 0.05-0.10",
         )
+    with col5:
+        max_trade_size = st.number_input(
+            "Max Trade Size",
+            min_value=0.000001,
+            value=100.0,
+            step=10.0,
+            format="%.6f",
+            key="backtest_max_trade_size",
+            help="Upper bound for each generated backtest trade. Larger values can increase price impact and slippage.",
+        )
     
     # ── 运行回测 ──
     if st.button("▶ Run Backtest", type="primary", width="stretch"):
@@ -435,6 +445,7 @@ def _run_backtesting() -> None:
                 initial_reserve_y=initial_reserve_y,
                 fee_rate=fee_rate,
                 volatility_threshold=volatility_threshold,
+                max_trade_size=max_trade_size,
             )
             scenario = build_backtest_scenario_from_prices(price_data, config)
             
@@ -524,11 +535,51 @@ def _run_parameter_sweep() -> None:
         st.caption("Please deselect other parameters before running.")
 
     st.subheader("Base Configuration")
-    initial_lp_owner = st.text_input(
-        "Initial LP Owner",
-        value=str(default_config.initial_lp_owner or "protocol"),
-        key="sweep_lp_owner",
-    )
+    base_cols = st.columns(4)
+    with base_cols[0]:
+        if x_reserve_enabled:
+            base_initial_reserve_x = float(default_config.initial_reserve_x)
+            st.caption(f"Base X Reserve is swept above (default {base_initial_reserve_x:g}).")
+        else:
+            base_initial_reserve_x = st.number_input(
+                "Base Initial X Reserve",
+                min_value=0.000001,
+                value=float(default_config.initial_reserve_x),
+                step=10.0,
+                key="sweep_base_reserve_x",
+            )
+    with base_cols[1]:
+        if y_reserve_enabled:
+            base_initial_reserve_y = float(default_config.initial_reserve_y)
+            st.caption(f"Base Y Reserve is swept above (default {base_initial_reserve_y:g}).")
+        else:
+            base_initial_reserve_y = st.number_input(
+                "Base Initial Y Reserve",
+                min_value=0.000001,
+                value=float(default_config.initial_reserve_y),
+                step=10.0,
+                key="sweep_base_reserve_y",
+            )
+    with base_cols[2]:
+        if fee_rate_enabled:
+            base_fee_rate = float(default_config.fee_rate)
+            st.caption(f"Base Fee Rate is swept above (default {base_fee_rate:g}).")
+        else:
+            base_fee_rate = st.number_input(
+                "Base Fee Rate",
+                min_value=0.0,
+                max_value=0.999999,
+                value=float(default_config.fee_rate),
+                step=0.001,
+                format="%.6f",
+                key="sweep_base_fee_rate",
+            )
+    with base_cols[3]:
+        initial_lp_owner = st.text_input(
+            "Initial LP Owner",
+            value=str(default_config.initial_lp_owner or "protocol"),
+            key="sweep_lp_owner",
+        )
 
     st.subheader("Custom Events")
     st.caption("Edit trading events that will be applied to all sweep scenarios:")
@@ -596,6 +647,9 @@ def _run_parameter_sweep() -> None:
             st.info(f"Running {total_scenarios} scenarios...")
 
             base_config = load_config(DEFAULT_CONFIG_PATH)
+            base_config.initial_reserve_x = base_initial_reserve_x
+            base_config.initial_reserve_y = base_initial_reserve_y
+            base_config.fee_rate = base_fee_rate
             base_config.initial_lp_owner = initial_lp_owner
             base_config.events = normalize_event_rows(event_rows)
 

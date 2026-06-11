@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
+from unicodedata import normalize
 from uuid import uuid4
 
 from src.application.validation import ValidationResult, validate_simulation_input
@@ -21,7 +22,8 @@ def parse_sweep_values(
 ) -> list[float]:
     """Parse a comma-separated sweep input into a bounded list of floats."""
     values: list[float] = []
-    for item in raw_values.split(","):
+    normalized_values = normalize("NFKC", raw_values).replace("、", ",").replace(";", ",")
+    for item in normalized_values.split(","):
         text = item.strip()
         if not text:
             continue

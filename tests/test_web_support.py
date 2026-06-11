@@ -23,6 +23,10 @@ def test_parse_sweep_values_allows_zero_when_requested() -> None:
     assert parse_sweep_values("0, 0.003, 0.01", label="Fee Rate Values", allow_zero=True) == [0.0, 0.003, 0.01]
 
 
+def test_parse_sweep_values_accepts_full_width_separators() -> None:
+    assert parse_sweep_values("750， 1500、 3000", label="X Reserve Values") == [750.0, 1500.0, 3000.0]
+
+
 def test_parse_sweep_values_keeps_reserve_values_positive() -> None:
     with pytest.raises(ValueError, match="positive"):
         parse_sweep_values("0, 1000", label="X Reserve Values")
