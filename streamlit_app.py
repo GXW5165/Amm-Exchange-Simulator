@@ -31,6 +31,8 @@ from src.web.app_support import (
     load_saved_config,
     normalize_event_rows,
     normalize_user_rows,
+    parse_sweep_values,
+    resolve_plot_dir,
     save_config_to_yaml,
     user_pnl_rows,
     validate_runtime_input,
@@ -45,26 +47,6 @@ WORKSPACES = ["Default Config", "Custom Simulation", "Backtesting", "Parameter S
 def _read_bytes(path: Path) -> bytes:
     """读取导出文件字节，用于 Streamlit 下载按钮。"""
     return path.read_bytes()
-
-
-def _parse_sweep_values(raw_values: str, *, label: str, max_values: int = 5) -> list[float]:
-    """Parse a comma-separated sweep input into a bounded list of positive floats."""
-    values: list[float] = []
-    for item in raw_values.split(","):
-        text = item.strip()
-        if not text:
-            continue
-        try:
-            value = float(text)
-        except ValueError as exc:
-            raise ValueError(f"{label} contains an invalid number: {text!r}") from exc
-        if value <= 0:
-            raise ValueError(f"{label} values must be positive.")
-        values.append(value)
-
-    if len(values) > max_values:
-        raise ValueError(f"{label} supports at most {max_values} values.")
-    return values
 
 
 def _install_theme_background() -> None:
@@ -223,12 +205,12 @@ def _show_result(artifacts, *, section_key: str) -> None:
     # ── PDF 报告导出 ──
     try:
         pdf_path = artifacts.summary_path.parent / "report.pdf"
-        if not pdf_path.exists():
-            generate_experiment_report(
-                result=artifacts.result,
-                plot_dir=str(artifacts.summary_path.parent),
-                output_path=str(pdf_path)
-            )
+        plot_dir = resolve_plot_dir(artifacts.plot_paths, artifacts.summary_path.parent)
+        generate_experiment_report(
+            result=artifacts.result,
+            plot_dir=str(plot_dir),
+            output_path=str(pdf_path),
+        )
         dl_cols[3].download_button(
             "📄 Download PDF Report",
             data=_read_bytes(pdf_path),
@@ -425,7 +407,7 @@ def _run_backtesting() -> None:
         fee_rate = st.number_input(
             "Fee Rate",
             min_value=0.0,
-            max_value=1.0,
+            max_value=0.999999,
             value=0.003,
             step=0.001,
             format="%.6f",
@@ -577,21 +559,28 @@ def _run_parameter_sweep() -> None:
 
             param_dict: dict[str, list[float]] = {}
             if fee_rate_enabled:
-                fee_rates = _parse_sweep_values(fee_rate_text, label="Fee Rate Values", max_values=max_params)
+                fee_rates = parse_sweep_values(
+                    fee_rate_text,
+                    label="Fee Rate Values",
+                    max_values=max_params,
+                    allow_zero=True,
+                    max_value=1.0,
+                    max_inclusive=False,
+                )
                 if not fee_rates:
                     st.error("Please enter at least one fee rate value.")
                     return
                 param_dict["fee_rate"] = fee_rates
 
             if x_reserve_enabled:
-                x_reserves = _parse_sweep_values(x_reserve_text, label="X Reserve Values", max_values=max_params)
+                x_reserves = parse_sweep_values(x_reserve_text, label="X Reserve Values", max_values=max_params)
                 if not x_reserves:
                     st.error("Please enter at least one X reserve value.")
                     return
                 param_dict["initial_reserve_x"] = x_reserves
 
             if y_reserve_enabled:
-                y_reserves = _parse_sweep_values(y_reserve_text, label="Y Reserve Values", max_values=max_params)
+                y_reserves = parse_sweep_values(y_reserve_text, label="Y Reserve Values", max_values=max_params)
                 if not y_reserves:
                     st.error("Please enter at least one Y reserve value.")
                     return
@@ -703,7 +692,7 @@ def _run_custom_simulation() -> None:
         fee_rate = st.number_input(
             "Fee Rate",
             min_value=0.0,
-            max_value=1.0,
+            max_value=0.999999,
             value=float(default_config.fee_rate),
             step=0.001,
             format="%.6f",

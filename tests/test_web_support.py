@@ -11,10 +11,43 @@ from src.web.app_support import (
     load_saved_config,
     normalize_event_rows,
     normalize_user_rows,
+    parse_sweep_values,
+    resolve_plot_dir,
     sanitize_saved_config_name,
     save_config_to_yaml,
     validate_runtime_input,
 )
+
+
+def test_parse_sweep_values_allows_zero_when_requested() -> None:
+    assert parse_sweep_values("0, 0.003, 0.01", label="Fee Rate Values", allow_zero=True) == [0.0, 0.003, 0.01]
+
+
+def test_parse_sweep_values_keeps_reserve_values_positive() -> None:
+    with pytest.raises(ValueError, match="positive"):
+        parse_sweep_values("0, 1000", label="X Reserve Values")
+
+
+def test_parse_sweep_values_rejects_fee_rate_at_one() -> None:
+    with pytest.raises(ValueError, match="< 1.0"):
+        parse_sweep_values("0, 0.003, 1", label="Fee Rate Values", allow_zero=True, max_value=1.0, max_inclusive=False)
+
+
+def test_resolve_plot_dir_prefers_existing_plot_parent(tmp_path: Path) -> None:
+    plot_dir = tmp_path / "scenario" / "plots"
+    plot_dir.mkdir(parents=True)
+    plot_path = plot_dir / "pool_spot_price.png"
+    plot_path.write_bytes(b"png")
+
+    resolved = resolve_plot_dir({"pool_spot_price": plot_path}, tmp_path / "scenario")
+
+    assert resolved == plot_dir
+
+
+def test_resolve_plot_dir_falls_back_when_no_plots_exist(tmp_path: Path) -> None:
+    fallback = tmp_path / "scenario"
+
+    assert resolve_plot_dir({}, fallback) == fallback
 
 
 def test_normalize_user_rows_builds_user_mapping() -> None:
@@ -135,3 +168,45 @@ def test_validate_runtime_input_rejects_unknown_event_user() -> None:
 
     assert not result.ok
     assert any("ghost" in error for error in result.errors)
+
+
+def test_validate_runtime_input_rejects_swap_before_liquidity() -> None:
+    users = normalize_user_rows([
+        {"user_id": "alice", "balance_x": 10.0, "balance_y": 10.0, "lp_shares": 0.0},
+    ])
+    events = normalize_event_rows([
+        {"timestamp": 1, "event_type": "swap", "user_id": "alice", "direction": "x_to_y", "amount_in": 1.0},
+    ])
+
+    result = validate_runtime_input(
+        initial_reserve_x=0.0,
+        initial_reserve_y=0.0,
+        fee_rate=0.003,
+        initial_lp_owner="protocol",
+        users=users,
+        events=events,
+    )
+
+    assert not result.ok
+    assert any("pool liquidity must exist" in error for error in result.errors)
+
+
+def test_validate_runtime_input_allows_add_liquidity_before_swap() -> None:
+    users = normalize_user_rows([
+        {"user_id": "alice", "balance_x": 20.0, "balance_y": 20.0, "lp_shares": 0.0},
+    ])
+    events = normalize_event_rows([
+        {"timestamp": 1, "event_type": "add_liquidity", "user_id": "alice", "amount_x": 5.0, "amount_y": 5.0},
+        {"timestamp": 2, "event_type": "swap", "user_id": "alice", "direction": "x_to_y", "amount_in": 1.0},
+    ])
+
+    result = validate_runtime_input(
+        initial_reserve_x=0.0,
+        initial_reserve_y=0.0,
+        fee_rate=0.003,
+        initial_lp_owner="protocol",
+        users=users,
+        events=events,
+    )
+
+    assert result.ok

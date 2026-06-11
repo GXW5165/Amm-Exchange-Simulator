@@ -10,6 +10,50 @@ from src.domain.user import User
 from src.infrastructure.config_loader import AppConfig
 
 
+def parse_sweep_values(
+    raw_values: str,
+    *,
+    label: str,
+    max_values: int = 5,
+    allow_zero: bool = False,
+    max_value: float | None = None,
+    max_inclusive: bool = True,
+) -> list[float]:
+    """Parse a comma-separated sweep input into a bounded list of floats."""
+    values: list[float] = []
+    for item in raw_values.split(","):
+        text = item.strip()
+        if not text:
+            continue
+        try:
+            value = float(text)
+        except ValueError as exc:
+            raise ValueError(f"{label} contains an invalid number: {text!r}") from exc
+        if allow_zero:
+            if value < 0:
+                raise ValueError(f"{label} values must be non-negative.")
+        elif value <= 0:
+            raise ValueError(f"{label} values must be positive.")
+        if max_value is not None:
+            if max_inclusive and value > max_value:
+                raise ValueError(f"{label} values must be <= {max_value}.")
+            if not max_inclusive and value >= max_value:
+                raise ValueError(f"{label} values must be < {max_value}.")
+        values.append(value)
+
+    if len(values) > max_values:
+        raise ValueError(f"{label} supports at most {max_values} values.")
+    return values
+
+
+def resolve_plot_dir(plot_paths: dict[str, Path], fallback_dir: str | Path) -> Path:
+    """Return the directory that contains generated plot images for a result."""
+    existing_paths = [Path(path) for path in plot_paths.values() if Path(path).exists()]
+    if existing_paths:
+        return existing_paths[0].parent
+    return Path(fallback_dir)
+
+
 def build_default_user_rows(users: dict[str, User]) -> list[dict[str, Any]]:
     """把用户字典转换成 Streamlit data_editor 可直接展示的行数据。"""
     if not users:
@@ -280,7 +324,7 @@ def validate_runtime_input(
     initial_lp_owner: str | None = "protocol",
 ) -> ValidationResult:
     """Web 层复用应用层统一校验，保持错误口径一致。"""
-    return validate_simulation_input(
+    result = validate_simulation_input(
         initial_reserve_x=initial_reserve_x,
         initial_reserve_y=initial_reserve_y,
         fee_rate=fee_rate,
@@ -288,3 +332,35 @@ def validate_runtime_input(
         users=users,
         events=events,
     )
+    _validate_web_event_liquidity_sequence(
+        result,
+        initial_reserve_x=initial_reserve_x,
+        initial_reserve_y=initial_reserve_y,
+        events=events,
+    )
+    return result
+
+
+def _validate_web_event_liquidity_sequence(
+    result: ValidationResult,
+    *,
+    initial_reserve_x: float,
+    initial_reserve_y: float,
+    events: list[dict[str, Any]],
+) -> None:
+    """Reject Web event sequences that would trade before any pool liquidity exists."""
+    has_liquidity = initial_reserve_x > 0 and initial_reserve_y > 0
+
+    def timestamp_key(item: dict[str, Any]) -> float:
+        try:
+            return float(item.get("timestamp", 0.0) or 0.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    for event in sorted(events, key=timestamp_key):
+        event_type = str(event.get("event_type", "")).strip()
+        if event_type == "add_liquidity":
+            has_liquidity = True
+            continue
+        if event_type in {"swap", "arbitrage", "remove_liquidity"} and not has_liquidity:
+            result.add(f"event at timestamp {event.get('timestamp')}: pool liquidity must exist before {event_type}")

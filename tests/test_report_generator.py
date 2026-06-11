@@ -5,6 +5,7 @@ from __future__ import annotations
 import builtins
 import importlib
 import importlib.util
+import base64
 from pathlib import Path
 
 import pytest
@@ -152,6 +153,19 @@ class TestPDFReportGenerator:
         # 验证 PDF 文件已创建
         assert output_path.exists()
         assert output_path.stat().st_size > 0
+
+    def test_chart_section_includes_all_known_png_outputs(self, tmp_path: Path) -> None:
+        """测试 PDF 图表章节包含新增的诊断图。"""
+        generator = PDFReportGenerator()
+        png_bytes = base64.b64decode(
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+        )
+        for filename in ["pool_spot_price.png", "candlestick.png", "slippage_volume.png"]:
+            (tmp_path / filename).write_bytes(png_bytes)
+
+        generator._add_chart_section(str(tmp_path))
+
+        assert len(generator.pdf.pages) == 3
 
 
 @pytest.mark.skipif(not FPDF_AVAILABLE, reason="fpdf2 is required for PDF rendering tests")
