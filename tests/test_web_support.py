@@ -1,6 +1,8 @@
 import os
 from pathlib import Path
 
+import pytest
+
 from src.web.app_support import (
     build_config_from_runtime_input,
     cleanup_old_web_runs,
@@ -99,10 +101,19 @@ def test_cleanup_old_web_runs_keeps_newest_directories(tmp_path: Path) -> None:
         run_dir.mkdir()
         os.utime(run_dir, (1000 + index, 1000 + index))
 
-    removed = cleanup_old_web_runs(tmp_path.as_posix(), keep=2)
+    removed = cleanup_old_web_runs(tmp_path.as_posix(), keep=2, allowed_root=tmp_path.as_posix())
 
     assert removed == 2
     assert sorted(path.name for path in tmp_path.iterdir()) == ["run_2", "run_3"]
+
+
+def test_cleanup_old_web_runs_rejects_paths_outside_allowed_root(tmp_path: Path) -> None:
+    output_root = tmp_path / "web_runs"
+    output_root.mkdir()
+    allowed_root = tmp_path / "allowed"
+
+    with pytest.raises(ValueError, match="outside allowed root"):
+        cleanup_old_web_runs(output_root.as_posix(), keep=1, allowed_root=allowed_root.as_posix())
 
 
 def test_validate_runtime_input_rejects_unknown_event_user() -> None:

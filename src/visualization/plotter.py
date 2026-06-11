@@ -12,12 +12,15 @@ import numpy as np
 from src.analytics.impermanent_loss import impermanent_loss_pct
 from src.simulator.result import SimulationResult
 
+STANDARD_FIGSIZE = (9, 5)
+STANDARD_DPI = 160
+
 
 def _save_figure(path: Path) -> Path:
     """统一保存 Matplotlib 图表并释放当前画布。"""
     path.parent.mkdir(parents=True, exist_ok=True)
     plt.tight_layout()
-    plt.savefig(path, dpi=160, bbox_inches="tight")
+    plt.savefig(path, dpi=STANDARD_DPI)
     plt.close()
     return path
 
@@ -30,7 +33,7 @@ def plot_pool_price(records, output_dir: str | Path) -> Path | None:
     timestamps = [record.timestamp for record in records]
     spot_prices = [record.spot_price for record in records]
 
-    plt.figure(figsize=(8, 4.5))
+    plt.figure(figsize=STANDARD_FIGSIZE)
     plt.plot(timestamps, spot_prices, color="#0f766e", linewidth=2)
     plt.title("Pool Spot Price")
     plt.xlabel("Timestamp")
@@ -48,7 +51,7 @@ def plot_slippage(records, output_dir: str | Path) -> Path | None:
     timestamps = [record.timestamp for record in trade_records]
     slippage = [record.slippage_pct for record in trade_records]
 
-    plt.figure(figsize=(8, 4.5))
+    plt.figure(figsize=STANDARD_FIGSIZE)
     plt.plot(timestamps, slippage, marker="o", color="#b45309", linewidth=2)
     plt.title("Trade Slippage")
     plt.xlabel("Timestamp")
@@ -66,7 +69,7 @@ def plot_pool_reserves(records, output_dir: str | Path) -> Path | None:
     reserve_x = [record.reserve_x for record in records]
     reserve_y = [record.reserve_y for record in records]
 
-    plt.figure(figsize=(8, 4.5))
+    plt.figure(figsize=STANDARD_FIGSIZE)
     plt.plot(timestamps, reserve_x, color="#2563eb", linewidth=2, label="Token X")
     plt.plot(timestamps, reserve_y, color="#dc2626", linewidth=2, label="Token Y")
     plt.title("Pool Reserves")
@@ -95,7 +98,7 @@ def plot_cumulative_fees(records, output_dir: str | Path) -> Path | None:
         timestamps.append(record.timestamp)
         cumulative.append(total)
 
-    plt.figure(figsize=(8, 4.5))
+    plt.figure(figsize=STANDARD_FIGSIZE)
     plt.plot(timestamps, cumulative, marker="o", color="#7c3aed", linewidth=2)
     plt.title("Cumulative Fees")
     plt.xlabel("Timestamp")
@@ -125,7 +128,7 @@ def plot_impermanent_loss(result: SimulationResult, output_dir: str | Path) -> P
     if not values:
         return None
 
-    plt.figure(figsize=(8, 4.5))
+    plt.figure(figsize=STANDARD_FIGSIZE)
     plt.plot(timestamps, values, color="#be123c", linewidth=2)
     plt.axhline(0, color="#334155", linewidth=1)
     plt.title("Impermanent Loss")
@@ -145,7 +148,7 @@ def plot_user_pnl(result: SimulationResult, output_dir: str | Path) -> Path | No
     pnl_values = [pnl_summary[user_id].total_pnl_in_y for user_id in user_ids]
     colors = ["#15803d" if value >= 0 else "#b91c1c" for value in pnl_values]
 
-    plt.figure(figsize=(8, 4.5))
+    plt.figure(figsize=STANDARD_FIGSIZE)
     plt.bar(user_ids, pnl_values, color=colors)
     plt.axhline(0, color="#334155", linewidth=1)
     plt.title("User Total PnL")
@@ -221,7 +224,7 @@ def plot_candlestick(
 
     import matplotlib.patches as mpatches
 
-    fig, ax = plt.subplots(figsize=(10, 5))
+    fig, ax = plt.subplots(figsize=STANDARD_FIGSIZE)
 
     for i, candle in enumerate(ohlc):
         open_p = candle["open"]
@@ -293,7 +296,7 @@ def plot_slippage_volume(
     x_to_y_data = [(amt, slip) for amt, slip, d in trade_data if d == "x_to_y"]
     y_to_x_data = [(amt, slip) for amt, slip, d in trade_data if d == "y_to_x"]
 
-    fig, ax = plt.subplots(figsize=(8, 5))
+    fig, ax = plt.subplots(figsize=STANDARD_FIGSIZE)
 
     if x_to_y_data:
         xs, ys = zip(*x_to_y_data)

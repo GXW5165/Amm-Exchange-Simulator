@@ -39,6 +39,7 @@ from src.web.app_support import (
 ROOT_DIR = Path(__file__).resolve().parent
 DEFAULT_CONFIG_PATH = ROOT_DIR / "configs" / "default.yaml"
 LOGO_PATH = ROOT_DIR / "logo.jpg"
+WORKSPACES = ["Default Config", "Custom Simulation", "Backtesting", "Parameter Sweep"]
 
 
 def _read_bytes(path: Path) -> bytes:
@@ -840,16 +841,20 @@ def main() -> None:
     if removed:
         st.info(f"Cleaned up {removed} old web run(s); only the latest 5 are kept.")
 
-    tab_default, tab_custom, tab_backtest, tab_sweep = st.tabs(
-        ["Default Config", "Custom Simulation", "Backtesting", "Parameter Sweep"]
+    active_workspace = st.radio(
+        "Workspace",
+        WORKSPACES,
+        horizontal=True,
+        key="active_workspace",
     )
-    with tab_default:
+
+    if active_workspace == "Default Config":
         _run_default_config()
-    with tab_custom:
+    elif active_workspace == "Custom Simulation":
         _run_custom_simulation()
-    with tab_backtest:
+    elif active_workspace == "Backtesting":
         _run_backtesting()
-    with tab_sweep:
+    elif active_workspace == "Parameter Sweep":
         _run_parameter_sweep()
 
 

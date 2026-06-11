@@ -11,10 +11,11 @@ from src.infrastructure.config_loader import load_config
 
 def test_large_trade_shock_scenario_scales_first_swap() -> None:
     config = load_config("configs/default.yaml")
+    original_amount = config.events[0]["amount_in"]
     scenario = build_large_trade_shock_scenario(config, shock_multiplier=3.0)
 
-    assert scenario.events[0]["amount_in"] == config.events[0]["amount_in"] * 3.0
-    assert config.events[0]["amount_in"] == 10.0
+    assert scenario.events[0]["amount_in"] == original_amount * 3.0
+    assert config.events[0]["amount_in"] == original_amount
 
 
 def test_parameter_scenarios_build_named_configs() -> None:

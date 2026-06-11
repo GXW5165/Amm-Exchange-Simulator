@@ -1,5 +1,5 @@
-initial_reserve_x: 1000.0
-initial_reserve_y: 1000.0
+initial_reserve_x: 1500.0
+initial_reserve_y: 1500.0
 fee_rate: 0.003
 initial_lp_owner: protocol
 log_path: data/output/logs/simulation.csv
@@ -7,72 +7,158 @@ summary_path: data/output/results/summary.json
 plot_dir: data/output/results
 users:
   alice:
-    balance_x: 500.0
-    balance_y: 500.0
+    balance_x: 900.0
+    balance_y: 800.0
     lp_shares: 0.0
   bob:
-    balance_x: 300.0
-    balance_y: 300.0
+    balance_x: 700.0
+    balance_y: 900.0
+    lp_shares: 0.0
+  carol:
+    balance_x: 650.0
+    balance_y: 850.0
+    lp_shares: 0.0
+  dave:
+    balance_x: 1200.0
+    balance_y: 1200.0
+    lp_shares: 0.0
+  erin:
+    balance_x: 500.0
+    balance_y: 700.0
     lp_shares: 0.0
 events:
-  # ── Alice 做市前先小额测试 swap，看池子深度 ──
+  # ── 多交易者基础场景：覆盖交易、做市、撤出和外部价格套利 ──
   - timestamp: 1
     event_type: swap
     user_id: alice
     direction: x_to_y
-    amount_in: 10.0
+    amount_in: 80.0
 
-  # ── Bob 添加流动性，获得 LP 份额 ──
   - timestamp: 2
     event_type: add_liquidity
     user_id: bob
-    amount_x: 20.0
-    amount_y: 20.0
+    amount_x: 150.0
+    amount_y: 150.0
 
-  # ── Alice 中等规模买入 Y（推动价格上升） ──
   - timestamp: 3
+    event_type: swap
+    user_id: carol
+    direction: y_to_x
+    amount_in: 60.0
+
+  - timestamp: 4
+    event_type: arbitrage
+    user_id: dave
+    market_price: 1.02
+    max_amount: 150.0
+
+  - timestamp: 5
+    event_type: add_liquidity
+    user_id: erin
+    amount_x: 90.0
+    amount_y: 90.0
+
+  - timestamp: 6
     event_type: swap
     user_id: alice
     direction: x_to_y
-    amount_in: 50.0
+    amount_in: 120.0
 
-  # ── Bob 反向卖出 Y 换 X，平抑价格 ──
-  - timestamp: 5
-    event_type: swap
-    user_id: bob
-    direction: y_to_x
-    amount_in: 20.0
-
-  # ── Bob 继续反向交易，价格进一步回调 ──
   - timestamp: 8
     event_type: swap
     user_id: bob
     direction: y_to_x
-    amount_in: 80.0
+    amount_in: 70.0
 
-  # ── Alice 大额买入 Y，产生显著滑点 ──
   - timestamp: 10
     event_type: swap
-    user_id: alice
+    user_id: carol
     direction: x_to_y
-    amount_in: 100.0
+    amount_in: 90.0
 
-  # ── Bob 取出部分 LP 份额 ──
-  - timestamp: 15
+  - timestamp: 12
+    event_type: arbitrage
+    user_id: dave
+    market_price: 0.96
+    max_amount: 180.0
+
+  - timestamp: 14
+    event_type: swap
+    user_id: erin
+    direction: y_to_x
+    amount_in: 110.0
+
+  - timestamp: 16
     event_type: remove_liquidity
     user_id: bob
-    lp_share: 5.0
+    lp_share: 45.0
 
-  # ── Alice 用小额反方向交易测试新价格 ──
-  - timestamp: 20
+  - timestamp: 18
     event_type: swap
     user_id: alice
     direction: y_to_x
-    amount_in: 30.0
+    amount_in: 100.0
 
-  # ── Bob 小额跟进买入 X，市场继续变化 ──
-  - timestamp: 30
+  - timestamp: 20
+    event_type: add_liquidity
+    user_id: carol
+    amount_x: 80.0
+    amount_y: 80.0
+
+  - timestamp: 22
+    event_type: swap
+    user_id: dave
+    direction: x_to_y
+    amount_in: 160.0
+
+  - timestamp: 24
+    event_type: remove_liquidity
+    user_id: erin
+    lp_share: 30.0
+
+  - timestamp: 26
     event_type: swap
     user_id: bob
     direction: x_to_y
-    amount_in: 10.0
+    amount_in: 130.0
+
+  - timestamp: 28
+    event_type: swap
+    user_id: carol
+    direction: y_to_x
+    amount_in: 140.0
+
+  - timestamp: 30
+    event_type: arbitrage
+    user_id: dave
+    market_price: 1.04
+    max_amount: 220.0
+
+  - timestamp: 32
+    event_type: add_liquidity
+    user_id: alice
+    amount_x: 70.0
+    amount_y: 70.0
+
+  - timestamp: 34
+    event_type: swap
+    user_id: erin
+    direction: x_to_y
+    amount_in: 75.0
+
+  - timestamp: 36
+    event_type: swap
+    user_id: bob
+    direction: y_to_x
+    amount_in: 120.0
+
+  - timestamp: 40
+    event_type: remove_liquidity
+    user_id: carol
+    lp_share: 25.0
+
+  - timestamp: 42
+    event_type: swap
+    user_id: alice
+    direction: x_to_y
+    amount_in: 60.0

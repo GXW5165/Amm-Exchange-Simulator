@@ -60,6 +60,12 @@ def validate_users(users: dict[str, User]) -> ValidationResult:
     for user_id, user in users.items():
         if not str(user_id).strip():
             result.add("user_id must not be empty")
+        if not isfinite(user.balance_x):
+            result.add(f"user {user_id} balance_x must be finite")
+        if not isfinite(user.balance_y):
+            result.add(f"user {user_id} balance_y must be finite")
+        if not isfinite(user.lp_shares):
+            result.add(f"user {user_id} lp_shares must be finite")
         if user.balance_x < 0 or user.balance_y < 0 or user.lp_shares < 0:
             result.add(f"user {user_id} balances and LP shares must be non-negative")
     return result
@@ -109,6 +115,8 @@ def validate_events(events: list[dict[str, Any]], users: dict[str, User] | None 
 
         try:
             timestamp = float(event.get("timestamp", index))
+            if not isfinite(timestamp):
+                result.add(f"{prefix}: timestamp must be finite")
             if timestamp < 0:
                 result.add(f"{prefix}: timestamp must be non-negative")
         except (TypeError, ValueError):
@@ -167,6 +175,9 @@ def _require_positive_number(result: ValidationResult, event: dict[str, Any], ke
         value = float(event.get(key, 0.0))
     except (TypeError, ValueError):
         result.add(f"{prefix}: {key} must be numeric")
+        return
+    if not isfinite(value):
+        result.add(f"{prefix}: {key} must be finite")
         return
     if value <= 0:
         result.add(f"{prefix}: {key} must be positive")

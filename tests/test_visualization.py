@@ -1,3 +1,5 @@
+import matplotlib.image as mpimg
+
 from src.domain.pool import Pool
 from src.domain.user import User
 from src.simulator import SimulatorEngine, build_events
@@ -35,6 +37,9 @@ def test_generate_result_plots_creates_png_files(tmp_path) -> None:
     assert "swap_slippage" in plot_paths
     assert "user_total_pnl" in plot_paths
     assert all(path.exists() for path in plot_paths.values())
+
+    image_shapes = {mpimg.imread(path).shape[:2] for path in plot_paths.values()}
+    assert len(image_shapes) == 1
 
 
 def test_plot_multi_scenario_comparison_creates_four_metric_panel(tmp_path) -> None:

@@ -152,7 +152,11 @@ def user_pnl_rows(summary_user_pnl: dict[str, Any]) -> list[dict[str, Any]]:
     return [asdict(item) for item in summary_user_pnl.values()]
 
 
-def cleanup_old_web_runs(output_root: str = "data/output/web_runs", keep: int = 5) -> int:
+def cleanup_old_web_runs(
+    output_root: str = "data/output/web_runs",
+    keep: int = 5,
+    allowed_root: str | Path = "data/output",
+) -> int:
     """清理旧的 Web 运行目录，只保留最近 `keep` 次结果。
 
     返回删除的目录数量，便于 UI 层向用户提示。
@@ -162,6 +166,10 @@ def cleanup_old_web_runs(output_root: str = "data/output/web_runs", keep: int = 
     base = Path(output_root)
     if not base.exists():
         return 0
+    base_resolved = base.resolve()
+    allowed_resolved = Path(allowed_root).resolve()
+    if base_resolved != allowed_resolved and allowed_resolved not in base_resolved.parents:
+        raise ValueError(f"Refusing to clean web runs outside allowed root: {base}")
 
     dirs = sorted(
         [entry for entry in base.iterdir() if entry.is_dir()],
@@ -170,6 +178,9 @@ def cleanup_old_web_runs(output_root: str = "data/output/web_runs", keep: int = 
     )
     removed = 0
     for stale in dirs[keep:]:
+        stale_resolved = stale.resolve()
+        if base_resolved != stale_resolved and base_resolved not in stale_resolved.parents:
+            raise ValueError(f"Refusing to delete path outside web run directory: {stale}")
         shutil.rmtree(stale, ignore_errors=True)
         removed += 1
     return removed

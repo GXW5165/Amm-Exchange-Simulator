@@ -62,10 +62,11 @@ def test_runner_does_not_mutate_config_users(tmp_path: Path) -> None:
 
 def test_interactive_cli_default_run_keeps_final_state_available() -> None:
     cli = AMMCLI()
+    config = load_config("configs/default.yaml")
 
     cli.run_default_simulation()
 
     assert cli.pool is not None
     assert cli.engine.records
-    assert len(cli.engine.records) == 9
+    assert len(cli.engine.records) == len(config.events)
     assert cli.pool.reserve_x == cli.engine.records[-1].reserve_x_after
