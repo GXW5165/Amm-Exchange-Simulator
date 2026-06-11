@@ -10,9 +10,6 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from fpdf import FPDF
-from fpdf.enums import XPos, YPos
-
 from src.analytics.report import summarize_records
 from src.simulator.result import SimulationResult
 
@@ -24,6 +21,49 @@ TEXT = (36, 45, 57)
 MUTED = (103, 116, 131)
 LINE = (218, 226, 235)
 WHITE = (255, 255, 255)
+
+
+def _load_fpdf() -> tuple[type, Any, Any]:
+    """按需加载 PDF 依赖，避免缺少 fpdf2 时影响非 PDF 功能。"""
+    try:
+        from fpdf import FPDF
+        from fpdf.enums import XPos, YPos
+    except ImportError as exc:
+        raise RuntimeError("PDF export requires fpdf2. Install it with: pip install fpdf2") from exc
+    return FPDF, XPos, YPos
+
+
+def _build_report_pdf_class(fpdf_base: type, x_pos: Any, y_pos: Any) -> type:
+    """创建带页眉页脚的 PDF 类；仅在真正生成 PDF 时依赖 fpdf2。"""
+
+    class ReportPDF(fpdf_base):
+        """带页眉页脚的报告 PDF 基类。"""
+
+        def __init__(self, title: str) -> None:
+            super().__init__()
+            self.report_title = title
+
+        def header(self) -> None:
+            """渲染页眉。"""
+            if self.page_no() == 1:
+                return
+            self.set_font("Helvetica", "B", 9)
+            self.set_text_color(*MUTED)
+            self.cell(0, 8, self.report_title, new_x=x_pos.LMARGIN, new_y=y_pos.NEXT)
+            self.set_draw_color(*LINE)
+            self.line(10, 18, 200, 18)
+            self.ln(6)
+
+        def footer(self) -> None:
+            """渲染页脚页码。"""
+            self.set_y(-15)
+            self.set_draw_color(*LINE)
+            self.line(10, self.get_y(), 200, self.get_y())
+            self.set_font("Helvetica", "", 8)
+            self.set_text_color(*MUTED)
+            self.cell(0, 10, f"Page {self.page_no()}", align="R")
+
+    return ReportPDF
 
 
 @dataclass
@@ -55,40 +95,14 @@ class ReportAnalysis:
     fee_income: str
 
 
-class ReportPDF(FPDF):
-    """带页眉页脚的报告 PDF 基类。"""
-
-    def __init__(self, title: str) -> None:
-        super().__init__()
-        self.report_title = title
-
-    def header(self) -> None:
-        """渲染页眉。"""
-        if self.page_no() == 1:
-            return
-        self.set_font("Helvetica", "B", 9)
-        self.set_text_color(*MUTED)
-        self.cell(0, 8, self.report_title, new_x=XPos.LMARGIN, new_y=YPos.NEXT)
-        self.set_draw_color(*LINE)
-        self.line(10, 18, 200, 18)
-        self.ln(6)
-
-    def footer(self) -> None:
-        """渲染页脚页码。"""
-        self.set_y(-15)
-        self.set_draw_color(*LINE)
-        self.line(10, self.get_y(), 200, self.get_y())
-        self.set_font("Helvetica", "", 8)
-        self.set_text_color(*MUTED)
-        self.cell(0, 10, f"Page {self.page_no()}", align="R")
-
-
 class PDFReportGenerator:
     """PDF 报告生成器。"""
 
     def __init__(self, title: str = "AMM Exchange Simulation Report") -> None:
+        fpdf_base, self.XPos, self.YPos = _load_fpdf()
+        report_pdf_cls = _build_report_pdf_class(fpdf_base, self.XPos, self.YPos)
         self.title = title
-        self.pdf = ReportPDF(title)
+        self.pdf = report_pdf_cls(title)
         self.pdf.set_auto_page_break(auto=True, margin=18)
         self.pdf.set_margins(left=14, top=14, right=14)
         self.pdf.set_font("Helvetica", "", 11)
@@ -115,8 +129,8 @@ class PDFReportGenerator:
             border=border,
             align=align,
             fill=fill,
-            new_x=XPos.LMARGIN,
-            new_y=YPos.NEXT,
+            new_x=self.XPos.LMARGIN,
+            new_y=self.YPos.NEXT,
         )
 
     def _inline_cell(
@@ -137,8 +151,8 @@ class PDFReportGenerator:
             border=border,
             align=align,
             fill=fill,
-            new_x=XPos.RIGHT,
-            new_y=YPos.TOP,
+            new_x=self.XPos.RIGHT,
+            new_y=self.YPos.TOP,
         )
 
     def _section_title(self, title: str, subtitle: str | None = None) -> None:

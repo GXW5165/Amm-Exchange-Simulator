@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import builtins
+import importlib
+import importlib.util
 from pathlib import Path
 
 import pytest
@@ -12,6 +15,8 @@ from src.analytics.report_generator import (
     ReportSummary,
     generate_experiment_report,
 )
+
+FPDF_AVAILABLE = importlib.util.find_spec("fpdf") is not None
 
 
 class TestReportSummary:
@@ -57,6 +62,7 @@ class TestReportAnalysis:
         assert analysis.liquidity_depth == "Deep liquidity"
 
 
+@pytest.mark.skipif(not FPDF_AVAILABLE, reason="fpdf2 is required for PDF rendering tests")
 class TestPDFReportGenerator:
     """测试 PDF 报告生成器。"""
 
@@ -148,6 +154,7 @@ class TestPDFReportGenerator:
         assert output_path.stat().st_size > 0
 
 
+@pytest.mark.skipif(not FPDF_AVAILABLE, reason="fpdf2 is required for PDF rendering tests")
 class TestGenerateExperimentReport:
     """测试生成实验报告函数。"""
 
@@ -199,3 +206,23 @@ class TestGenerateExperimentReport:
         # 验证目录和文件已创建
         assert output_path.parent.exists()
         assert output_path.exists()
+
+
+def test_report_generator_import_is_independent_from_fpdf(monkeypatch: pytest.MonkeyPatch) -> None:
+    """缺少 fpdf2 时，模块导入应成功，只有 PDF 生成路径报友好错误。"""
+
+    real_import = builtins.__import__
+
+    def guarded_import(name, globals=None, locals=None, fromlist=(), level=0):
+        if name == "fpdf" or name.startswith("fpdf."):
+            raise ImportError("blocked fpdf import")
+        return real_import(name, globals, locals, fromlist, level)
+
+    monkeypatch.setattr(builtins, "__import__", guarded_import)
+    module = importlib.reload(importlib.import_module("src.analytics.report_generator"))
+
+    with pytest.raises(RuntimeError, match="PDF export requires fpdf2"):
+        module.PDFReportGenerator()
+
+    monkeypatch.setattr(builtins, "__import__", real_import)
+    importlib.reload(module)
