@@ -68,7 +68,7 @@ amm-exchange-simulator/
 │   ├── stable_market.csv             # 稳定市场样例
 │   ├── trend_market.csv              # 趋势市场样例
 │   ├── volatile_market.csv           # 高波动市场样例
-│   ├── saved_configs/                # Web 保存的用户配置
+│   ├── saved_configs/                # 内置样例及 Web 保存的用户配置
 │   └── output/                       # 运行输出，已被 Git 忽略
 ├── src/
 │   ├── amm/                          # AMM 交易引擎与流动性管理
@@ -130,6 +130,14 @@ abs(execution_price - theoretical_price) / theoretical_price * 100
 IL(r) = 2 * sqrt(r) / (1 + r) - 1
 ```
 
+### 指标口径
+
+- `spot_price` 的单位是 Token Y / Token X。
+- `x_to_y` 的 `execution_price` 表示每 1 个 Token X 换出的 Token Y；`y_to_x` 则表示每 1 个 Token Y 换出的 Token X。
+- 手续费按输入资产收取。汇总指标中的 `total_fees` 是原始手续费数量相加，`total_fees_in_y` 会统一折算为 Token Y，适合与总价值和 PnL 对比。
+- `invariant_before` / `invariant_after` 记录的是 `reserve_x * reserve_y`。在含手续费模型中，手续费沉淀会让该乘积增长，因此它是池状态审计指标，不代表每一步都严格不变。
+- LP 份额代表对当前资金池储备的比例索取权；已有池子添加流动性时，系统只按当前池子比例消耗双边资产，多带入的一侧不会被注入池内。
+
 ## 配置文件
 
 默认配置位于 [configs/default.yaml](configs/default.yaml)。
@@ -150,6 +158,9 @@ initial_reserve_x: 1000.0
 initial_reserve_y: 1000.0
 fee_rate: 0.003
 initial_lp_owner: protocol
+log_path: data/output/logs/simulation.csv
+summary_path: data/output/results/summary.json
+plot_dir: data/output/results
 
 users:
   alice:
@@ -169,6 +180,15 @@ events:
     market_price: 1.0
     max_amount: 50.0
 ```
+
+常用可选字段：
+
+| 字段 | 说明 |
+| --- | --- |
+| `log_path` | 事件 CSV 日志输出路径 |
+| `summary_path` | JSON 摘要输出路径 |
+| `plot_dir` | PNG 图表输出目录 |
+| `initial_lp_owner` | 初始池子非空且用户 LP 份额未完全分配时，剩余初始 LP 份额的归属账户 |
 
 ## CLI 运行方式
 
@@ -316,6 +336,8 @@ timestamp,price_y_per_x
 
 上传的 CSV 会在内存中解析，不会写入固定仓库文件，因此不同运行之间不会互相覆盖上传数据。
 
+回测事件生成是一种教学用启发式规则：当相邻价格变化超过阈值时，系统按价格方向生成 `swap` 事件，并用 `max_trade_size` 限制交易规模。它不代表真实交易策略，也不会连接实时行情。
+
 ### 4. Parameter Sweep
 
 用于批量运行参数组合并比较不同场景表现。当前页面与演示界面保持一致，支持一次选择一种扫参维度：
@@ -333,6 +355,8 @@ Web 扫参默认输出目录：
 ```text
 data/output/sweeps/web_sweep/
 ```
+
+当前 Web 扫参一次最多启用一个参数维度，每个维度最多输入 5 个取值；应用层 `run_parameter_sweep` 支持参数网格组合，后续如果需要可以在 Web 页面开放多维组合。
 
 ## 输出文件
 
